@@ -12,9 +12,9 @@ const HomePage = () => {
                     <Link to="/loan-calculator">Go to Loan Calculator</Link>
                 </div>
                 <div style={{ border: '1px solid #ccc', padding: '20px' }}>
-                    <h2>Budget Calculator</h2>
+                    <h2>Budgeting</h2>
                     <p>Manage your income and expenses effectively.</p>
-                    <Link to="/budget-calculator">Go to Budget Calculator</Link>
+                    <Link to="/budget-manager">Manage My Budget</Link>
                 </div>
                 <div style={{ border: '1px solid #ccc', padding: '20px' }}>
                     <h2>Debt Management</h2>
