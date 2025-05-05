@@ -10,6 +10,7 @@ import BudgetDetails from './components/BudgetDetails';
 import EditTransaction from './components/EditTransaction';
 import YearlyBudget from './components/YearlyBudget';
 import SpendingTargets from './components/SpendingTargets';
+import AddDebt from './components/AddDebt';
 
 function App() {
     const [transactions, setTransactions] = useState(() => {
@@ -77,6 +78,7 @@ function App() {
                         />
                     }
                 />
+                <Route path="/add-debt" element={<AddDebt />} />
             </Routes>
         </Router>
     );
