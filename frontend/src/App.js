@@ -10,7 +10,10 @@ import BudgetDetails from './components/BudgetDetails';
 import EditTransaction from './components/EditTransaction';
 import YearlyBudget from './components/YearlyBudget';
 import SpendingTargets from './components/SpendingTargets';
-import AddDebt from './components/AddDebt';
+import AddDebtType from './components/AddDebtType';
+import AddFixedDebt from './components/AddFixedDebt';
+import AddRevolvingDebt from './components/AddRevolvingDebt';
+import DebtDetails from './components/DebtDetails';
 
 function App() {
     const [transactions, setTransactions] = useState(() => {
@@ -78,7 +81,10 @@ function App() {
                         />
                     }
                 />
-                <Route path="/add-debt" element={<AddDebt />} />
+                <Route path="/add-debt-type" element={<AddDebtType />} />
+                <Route path="/add-fixed-debt" element={<AddFixedDebt />} />
+                <Route path="/add-revolving-debt" element={<AddRevolvingDebt />} />
+                <Route path="/debt-details/:id" element={<DebtDetails />} />
             </Routes>
         </Router>
     );

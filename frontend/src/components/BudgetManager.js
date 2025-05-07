@@ -32,6 +32,15 @@ const BudgetManager = ({ transactions }) => {
             return acc;
         }, {});
 
+    // Update % Paid for revolving debt
+    const updatedTransactions = transactions.map((transaction) => {
+        if (transaction.type === 'revolving') {
+            const percentageUsed = (transaction.balance / transaction.debtLimit) * 100 || 0; // Current balance as a percentage of debt limit
+            return { ...transaction, percentageUsed: percentageUsed.toFixed(2) };
+        }
+        return transaction;
+    });
+
     // Prepare data for the pie chart
     const chartData = [
         ['Category', 'Amount'],
