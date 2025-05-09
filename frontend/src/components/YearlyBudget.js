@@ -2,7 +2,55 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Chart } from 'react-google-charts';
 
-const YearlyBudget = ({ transactions, yearlyTargets }) => {
+const YearlyBudget = () => {
+    const [transactions, setTransactions] = useState([]); // Initialize state for transactions
+    const [yearlyTargets, setYearlyTargets] = useState({}); // Initialize state for yearly targets
+
+    useEffect(() => {
+        // Fetch transactions from the backend
+        const fetchTransactions = async () => {
+            try {
+                const response = await fetch('/api/transactions'); // Fetch transactions
+                if (!response.ok) {
+                    throw new Error('Failed to fetch transactions');
+                }
+                const data = await response.json();
+                setTransactions(data); // Set transactions state
+            } catch (error) {
+                console.error('Error fetching transactions:', error);
+            }
+        };
+
+        fetchTransactions();
+    }, []); // Fetch data only once on component mount
+
+    useEffect(() => {
+        // Fetch yearly targets from the backend
+        const fetchYearlyTargets = async () => {
+            try {
+                const response = await fetch('/api/yearlyTargets'); // Fetch yearly targets
+                if (!response.ok) {
+                    throw new Error('Failed to fetch yearly targets');
+                }
+                const data = await response.json();
+
+                // Transform data into a structure matching { [year]: { [month]: { category: target } } }
+                const transformedData = data.reduce((acc, row) => {
+                    const { year, month, category, target } = row;
+                    if (!acc[year]) acc[year] = {};
+                    if (!acc[year][month]) acc[year][month] = {};
+                    acc[year][month][category] = parseFloat(target); // Ensure target is treated as a number
+                    return acc;
+                }, {});
+                setYearlyTargets(transformedData);
+            } catch (error) {
+                console.error('Error fetching yearly targets:', error); // Debugging log for errors
+            }
+        };
+
+        fetchYearlyTargets();
+    }, []); // Fetch data only once on component mount
+
     const months = [
         'January', 'February', 'March', 'April', 'May', 'June',
         'July', 'August', 'September', 'October', 'November', 'December',
@@ -33,43 +81,58 @@ const YearlyBudget = ({ transactions, yearlyTargets }) => {
     );
 
     const [currentMonthIndex, setCurrentMonthIndex] = useState(new Date().getMonth()); // Focus on current month
-    const [selectedCategory, setSelectedCategory] = useState(categories[0]); // Default category for line chart
+    const [currentYear, setCurrentYear] = useState(new Date().getFullYear()); // Add state for the current year
 
     useEffect(() => {
-        // Initialize monthly data with targets from yearlyTargets
         const updatedData = Array(12).fill(null).map((_, monthIndex) =>
             categories.reduce((acc, category) => {
+                // Fetch target from yearlyTargets for the current year and month
+                const yearData = yearlyTargets?.[currentYear];
+                const monthTargets = yearData ? yearData[monthIndex + 1] : null; // Adjust for 1-based months
                 acc[category] = {
-                    target: yearlyTargets?.[monthIndex]?.[category] || 0, // Use yearlyTargets for targets
-                    actual: 0,
+                    target: monthTargets?.[category] || 0, // Target is fetched from yearlyTargets
+                    actual: 0, // Initialize actual to 0
                 };
                 return acc;
             }, {})
         );
 
-        // Populate actual spending from transactions
+        // Calculate actual values from transactions
         transactions.forEach((transaction) => {
-            const transactionDate = new Date(transaction.date);
-            const transactionMonth = transactionDate.getMonth();
+            const transactionDate = new Date(transaction.date); // Parse full date from transactions table
+            const transactionMonth = transactionDate.getMonth(); // Extract month (0-based)
+            const transactionYear = transactionDate.getFullYear(); // Extract year
 
-            // Validate transactionMonth to ensure it's within bounds
-            if (transactionMonth >= 0 && transactionMonth < months.length) {
+            // Filter by year and month
+            if (transactionYear === currentYear && transactionMonth >= 0 && transactionMonth < months.length) {
                 const category = transaction.category || 'Other';
                 if (updatedData[transactionMonth][category]) {
-                    updatedData[transactionMonth][category].actual += transaction.amount;
+                    updatedData[transactionMonth][category].actual += parseFloat(transaction.amount); // Convert amount to number before summing
                 }
             }
         });
 
         setMonthlyData(updatedData);
-    }, [transactions, yearlyTargets]); // Recalculate when yearlyTargets or transactions change
+    }, [transactions, yearlyTargets, currentYear]); // Recalculate when transactions, yearlyTargets, or currentYear changes
 
     const handlePrevious = () => {
-        setCurrentMonthIndex((prev) => Math.max(prev - 1, 0));
+        setCurrentMonthIndex((prev) => {
+            if (prev === 0) {
+                setCurrentYear((year) => year - 1); // Move to the previous year
+                return 11; // Set to December
+            }
+            return prev - 1;
+        });
     };
 
     const handleNext = () => {
-        setCurrentMonthIndex((prev) => Math.min(prev + 1, months.length - 1));
+        setCurrentMonthIndex((prev) => {
+            if (prev === 11) {
+                setCurrentYear((year) => year + 1); // Move to the next year
+                return 0; // Set to January
+            }
+            return prev + 1;
+        });
     };
 
     // Prepare data for the column chart (Total Income vs. Total Spending)
@@ -86,26 +149,13 @@ const YearlyBudget = ({ transactions, yearlyTargets }) => {
         }),
     ];
 
-    // Prepare data for the line chart (Actual vs. Target for selected category)
-    const lineChartData = [
-        ['Month', 'Target', 'Actual'],
-        ...months.map((month, index) => {
-            const categoryData = monthlyData[index]?.[selectedCategory] || { target: 0, actual: 0 };
-            return [month, categoryData.target, categoryData.actual];
-        }),
-    ];
-
     return (
         <div style={{ maxWidth: '1000px', margin: '0 auto', fontFamily: 'Open Sans, sans-serif' }}>
             <h2 style={{ textAlign: 'center', marginBottom: '20px' }}>Yearly Budget</h2>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <button onClick={handlePrevious} disabled={currentMonthIndex === 0}>
-                    &lt; Previous
-                </button>
-                <h3>{months[currentMonthIndex]}</h3>
-                <button onClick={handleNext} disabled={currentMonthIndex === months.length - 1}>
-                    Next &gt;
-                </button>
+                <button onClick={handlePrevious}>&lt; Previous</button>
+                <h3>{months[currentMonthIndex]} {currentYear}</h3>
+                <button onClick={handleNext}>Next &gt;</button>
             </div>
             <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px' }}>
                 <thead>
@@ -152,10 +202,10 @@ const YearlyBudget = ({ transactions, yearlyTargets }) => {
                                     </div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '5px' }}>
                                         <span>
-                                            <strong>Target:</strong> P{categoryData.target.toLocaleString()}
+                                            <strong>Target:</strong> {categoryData.target.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                         </span>
                                         <span>
-                                            <strong>Actual:</strong> P{categoryData.actual.toLocaleString()}
+                                            <strong>Actual:</strong> {categoryData.actual.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                         </span>
                                     </div>
                                     <div
@@ -165,8 +215,8 @@ const YearlyBudget = ({ transactions, yearlyTargets }) => {
                                         }}
                                     >
                                         {difference >= 0
-                                            ? `Within Budget By: P${difference.toLocaleString()}`
-                                            : `Overbudget By: P${Math.abs(difference).toLocaleString()}`}
+                                            ? `Within Budget By: ${difference.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                            : `Overbudget By: ${Math.abs(difference).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                                     </div>
                                 </td>
                             </tr>
@@ -185,37 +235,6 @@ const YearlyBudget = ({ transactions, yearlyTargets }) => {
                         vAxis: { title: 'Amount (P)' },
                         legend: { position: 'top' },
                         colors: ['#4caf50', '#f44336'], // Green for income, red for spending
-                    }}
-                    width="100%"
-                    height="400px"
-                />
-            </div>
-            <div style={{ marginBottom: '40px' }}>
-                <h3 style={{ textAlign: 'center' }}>Actual vs. Target for {selectedCategory}</h3>
-                <div style={{ textAlign: 'center', marginBottom: '10px' }}>
-                    <label htmlFor="category-select">Select Category:</label>
-                    <select
-                        id="category-select"
-                        value={selectedCategory}
-                        onChange={(e) => setSelectedCategory(e.target.value)}
-                        style={{ marginLeft: '10px' }}
-                    >
-                        {categories.map((category) => (
-                            <option key={category} value={category}>
-                                {category}
-                            </option>
-                        ))}
-                    </select>
-                </div>
-                <Chart
-                    chartType="LineChart"
-                    data={lineChartData}
-                    options={{
-                        title: '',
-                        hAxis: { title: 'Month' },
-                        vAxis: { title: 'Amount (P)' },
-                        legend: { position: 'top' },
-                        colors: ['#2196f3', '#ff9800'], // Blue for target, orange for actual
                     }}
                     width="100%"
                     height="400px"

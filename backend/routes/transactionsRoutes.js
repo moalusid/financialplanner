@@ -2,30 +2,16 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../database/config');
 
-// Get transactions, optionally filtered by month
+// Get all transactions
 router.get('/', async (req, res) => {
     try {
-        const { month } = req.query; // Extract 'month' query parameter
-        let query = 'SELECT * FROM transactions';
-        const params = [];
-
-        if (month) {
-            query += ' WHERE EXTRACT(MONTH FROM date) = $1';
-            params.push(month);
-        }
-
-        const result = await pool.query(query, params);
-
-        // Add headers to prevent caching
-        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-        res.set('Pragma', 'no-cache');
-        res.set('Expires', '0');
-        res.set('Surrogate-Control', 'no-store');
-
-        res.json(result.rows);
+        const result = await pool.query(`
+            SELECT id, date, category, amount, type
+            FROM transactions
+        `);
+        res.json(result.rows); // Send transactions data
     } catch (error) {
-        console.error('Error fetching transactions:', error.message);
-        console.error('Stack trace:', error.stack);
+        console.error('Error fetching transactions:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });
