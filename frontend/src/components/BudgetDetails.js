@@ -1,9 +1,49 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
 const BudgetDetails = ({ onUpdateTransactions, transactions }) => {
     const [isEditing, setIsEditing] = useState(false);
-    const [editableTransactions, setEditableTransactions] = useState([...transactions]);
+    const [editableTransactions, setEditableTransactions] = useState([]);
+    const [currentMonthIndex, setCurrentMonthIndex] = useState(new Date().getMonth()); // Focus on current month
+    const [currentYear, setCurrentYear] = useState(new Date().getFullYear()); // Track the current year
+    const [loading, setLoading] = useState(true); // Add loading state
+    const [error, setError] = useState(null); // Add error state
+
+    useEffect(() => {
+        // Fetch transactions dynamically based on the current month
+        const fetchTransactions = async () => {
+            setLoading(true);
+            setError(null);
+            try {
+                const response = await fetch(`/api/transactions?month=${currentMonthIndex + 1}`); // Ensure this matches the backend route
+                const contentType = response.headers.get('Content-Type');
+                if (!response.ok || !contentType.includes('application/json')) {
+                    const text = await response.text(); // Log the full response for debugging
+                    throw new Error(`Failed to fetch transactions: ${response.statusText}. Response: ${text}`);
+                }
+                const data = await response.json();
+                setEditableTransactions(data);
+            } catch (error) {
+                setError(error.message);
+                console.error('Error fetching transactions:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchTransactions();
+    }, [currentMonthIndex]);
+
+    useEffect(() => {
+        const filteredTransactions = transactions.filter((transaction) => {
+            const transactionDate = new Date(transaction.date);
+            return (
+                transactionDate.getMonth() === currentMonthIndex &&
+                transactionDate.getFullYear() === currentYear
+            );
+        });
+        setEditableTransactions(filteredTransactions);
+    }, [transactions, currentMonthIndex, currentYear]);
 
     const categories = [
         'Housing',
@@ -27,41 +67,68 @@ const BudgetDetails = ({ onUpdateTransactions, transactions }) => {
         'July', 'August', 'September', 'October', 'November', 'December',
     ];
 
-    const [currentMonthIndex, setCurrentMonthIndex] = useState(new Date().getMonth()); // Focus on current month
-
     const handlePrevious = () => {
-        setCurrentMonthIndex((prev) => Math.max(prev - 1, 0));
+        setCurrentMonthIndex((prev) => {
+            if (prev === 0) {
+                setCurrentYear((year) => year - 1); // Move to the previous year
+                return 11; // Set month to December
+            }
+            return prev - 1;
+        });
     };
 
     const handleNext = () => {
-        setCurrentMonthIndex((prev) => Math.min(prev + 1, months.length - 1));
+        setCurrentMonthIndex((prev) => {
+            if (prev === 11) {
+                setCurrentYear((year) => year + 1); // Move to the next year
+                return 0; // Set month to January
+            }
+            return prev + 1;
+        });
     };
 
-    const filteredTransactions = editableTransactions.filter(
-        (transaction) => new Date(transaction.date).getMonth() === currentMonthIndex
-    );
+    const filteredTransactions = editableTransactions.filter((transaction) => {
+        const transactionDate = new Date(transaction.date);
+        return (
+            transactionDate.getMonth() === currentMonthIndex &&
+            transactionDate.getFullYear() === currentYear // Ensure the year matches the selected year
+        );
+    });
 
     const groupedByType = filteredTransactions.reduce((acc, transaction) => {
-        const { type, category } = transaction;
+        const { type, category, amount } = transaction;
         if (!acc[type]) acc[type] = {};
         if (!acc[type][category]) acc[type][category] = [];
-        acc[type][category].push(transaction);
+        acc[type][category].push({
+            ...transaction,
+            amount: parseFloat(amount) || 0, // Ensure amount is a valid number
+        });
         return acc;
     }, {});
 
-    const totalIncome = filteredTransactions
-        .filter((t) => t.type === 'income')
-        .reduce((sum, t) => sum + t.amount, 0);
-
-    const totalExpenses = filteredTransactions
-        .filter((t) => t.type === 'expense')
-        .reduce((sum, t) => sum + t.amount, 0);
-
+    const totalIncome = Object.values(groupedByType.income || {}).flat().reduce((sum, t) => sum + t.amount, 0);
+    const totalExpenses = Object.values(groupedByType.expense || {}).flat().reduce((sum, t) => sum + t.amount, 0);
     const remainingBudget = totalIncome - totalExpenses;
 
     const handleInputChange = (index, field, value) => {
+        // Ensure the index exists in the array
+        if (index < 0 || index >= editableTransactions.length) {
+            console.error(`Invalid index: ${index}`);
+            return;
+        }
+
         const updatedTransactions = [...editableTransactions];
-        updatedTransactions[index][field] = field === 'amount' ? parseFloat(value) || 0 : value;
+        const transaction = updatedTransactions[index];
+
+        // Ensure the transaction exists before updating
+        if (!transaction) {
+            console.error(`Transaction not found at index: ${index}`);
+            return;
+        }
+
+        // Update the specified field
+        transaction[field] = field === 'amount' ? parseFloat(value) || 0 : value;
+
         setEditableTransactions(updatedTransactions);
     };
 
@@ -72,25 +139,79 @@ const BudgetDetails = ({ onUpdateTransactions, transactions }) => {
         setEditableTransactions(updatedTransactions);
     };
 
-    const handleSave = () => {
-        onUpdateTransactions(editableTransactions);
-        setIsEditing(false);
+    const handleSave = async () => {
+        try {
+            // Send updated transactions to the backend
+            const response = await fetch('/api/transactions', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(editableTransactions), // Send all updated transactions
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to save transactions: ${response.statusText}`);
+            }
+
+            // Fetch the updated transactions for the current month and year
+            const updatedResponse = await fetch(`/api/transactions?month=${currentMonthIndex + 1}`);
+            if (!updatedResponse.ok) {
+                throw new Error(`Failed to fetch updated transactions: ${updatedResponse.statusText}`);
+            }
+
+            const updatedTransactions = await updatedResponse.json();
+            setEditableTransactions(updatedTransactions); // Update the state with the saved transactions
+            onUpdateTransactions(updatedTransactions); // Notify parent component of the changes
+            setIsEditing(false); // Exit edit mode
+        } catch (error) {
+            console.error('Error saving transactions:', error);
+            setError('Failed to save changes. Please try again.');
+        }
     };
 
     const handleCancel = () => {
-        setEditableTransactions([...transactions]); // Restore original transactions
+        // Restore original transactions for the current month and year
+        const filteredTransactions = transactions.filter((transaction) => {
+            const transactionDate = new Date(transaction.date);
+            return (
+                transactionDate.getMonth() === currentMonthIndex &&
+                transactionDate.getFullYear() === currentYear
+            );
+        });
+        setEditableTransactions(filteredTransactions); // Restore filtered transactions
         setIsEditing(false); // Exit edit mode
     };
+
+    const formatDate = (dateString) => {
+        const options = { day: '2-digit', month: 'short', year: 'numeric' };
+        return new Date(dateString).toLocaleDateString('en-GB', options).replace(/ /g, '-');
+    };
+
+    const formatNumber = (number) => {
+        // Ensure the number is valid and format it with comma separators
+        if (isNaN(number)) return '0.00';
+        return Number(number).toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        });
+    };
+
+    if (loading) {
+        return <div>Loading...</div>; // Display loading message
+    }
+
+    if (error) {
+        return <div>Error: {error}</div>; // Display error message
+    }
 
     return (
         <div style={{ maxWidth: '800px', margin: '0 auto', fontFamily: 'Open Sans, sans-serif' }}>
             <h2 style={{ textAlign: 'center', marginBottom: '20px' }}>Budget Details</h2>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <button onClick={handlePrevious} disabled={currentMonthIndex === 0}>
+                <button onClick={handlePrevious}>
                     &lt; Previous
                 </button>
-                <h3>{months[currentMonthIndex]}</h3>
-                <button onClick={handleNext} disabled={currentMonthIndex === months.length - 1}>
+                <h3>{`${months[currentMonthIndex]} ${currentYear}`}</h3> {/* Display month and year */}
+                <button onClick={handleNext}>
                     Next &gt;
                 </button>
             </div>
@@ -154,9 +275,12 @@ const BudgetDetails = ({ onUpdateTransactions, transactions }) => {
                                                                 textAlign: 'right',
                                                             }}
                                                         >
-                                                            P{groupedByType[type][category]
-                                                                .reduce((sum, t) => sum + t.amount, 0)
-                                                                .toLocaleString()}
+                                                            {formatNumber(
+                                                                groupedByType[type][category].reduce(
+                                                                    (sum, t) => sum + t.amount,
+                                                                    0
+                                                                )
+                                                            )}
                                                         </td>
                                                     </tr>
                                                     {groupedByType[type][category].map((transaction, index) => (
@@ -175,7 +299,7 @@ const BudgetDetails = ({ onUpdateTransactions, transactions }) => {
                                                                         }
                                                                     />
                                                                 ) : (
-                                                                    transaction.date
+                                                                    formatDate(transaction.date)
                                                                 )}
                                                             </td>
                                                             <td style={{ padding: '4px' }}>
@@ -209,7 +333,7 @@ const BudgetDetails = ({ onUpdateTransactions, transactions }) => {
                                                                         }
                                                                     />
                                                                 ) : (
-                                                                    transaction.amount.toLocaleString()
+                                                                    formatNumber(transaction.amount)
                                                                 )}
                                                             </td>
                                                             {isEditing && (
@@ -237,7 +361,7 @@ const BudgetDetails = ({ onUpdateTransactions, transactions }) => {
                             </tr>
                             {type === 'income' && <tr style={{ height: '20px' }}></tr>} {/* Spacer between groups */}
                         </React.Fragment>
-                    ))}
+                                                    ))}
                 </tbody>
                 <tfoot>
                     <tr style={{ height: '20px' }}></tr> {/* Spacer between expenses and summary lines */}
@@ -256,7 +380,7 @@ const BudgetDetails = ({ onUpdateTransactions, transactions }) => {
                                 border: '2px solid #000', // Ensure right border is applied
                             }}
                         >
-                            P{totalIncome.toLocaleString()}
+                            {formatNumber(totalIncome)}
                         </td>
                     </tr>
                     <tr>
@@ -274,7 +398,7 @@ const BudgetDetails = ({ onUpdateTransactions, transactions }) => {
                                 border: '2px solid #000', // Ensure right border is applied
                             }}
                         >
-                            P{totalExpenses.toLocaleString()}
+                            {formatNumber(totalExpenses)}
                         </td>
                     </tr>
                     <tr>
@@ -292,7 +416,7 @@ const BudgetDetails = ({ onUpdateTransactions, transactions }) => {
                                 border: '2px solid #000', // Ensure right border is applied
                             }}
                         >
-                            P{remainingBudget.toLocaleString()}
+                            {formatNumber(remainingBudget)}
                         </td>
                     </tr>
                 </tfoot>

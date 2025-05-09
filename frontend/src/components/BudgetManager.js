@@ -1,45 +1,83 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Chart } from 'react-google-charts';
+import axios from 'axios';
 
-const BudgetManager = ({ transactions }) => {
+const BudgetManager = () => {
     const months = [
         'January', 'February', 'March', 'April', 'May', 'June',
         'July', 'August', 'September', 'October', 'November', 'December',
     ];
 
-    const [currentMonthIndex] = useState(new Date().getMonth()); // Focus on current month
+    const [currentMonthIndex, setCurrentMonthIndex] = useState(new Date().getMonth());
+    const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+    const [totalIncome, setTotalIncome] = useState(0);
+    const [totalExpenses, setTotalExpenses] = useState(0);
+    const [expensesByCategory, setExpensesByCategory] = useState({});
 
-    const filteredTransactions = transactions.filter(
-        (transaction) => new Date(transaction.date).getMonth() === currentMonthIndex
-    );
+    useEffect(() => {
+        const fetchBudgetData = async () => {
+            try {
+                const response = await axios.get('http://localhost:5000/api/transactions');
+                const transactions = response.data;
 
-    const totalIncome = filteredTransactions
-        .filter((transaction) => transaction.type === 'income')
-        .reduce((sum, transaction) => sum + transaction.amount, 0);
+                const filteredTransactions = transactions.filter((transaction) => {
+                    const transactionDate = new Date(transaction.date);
+                    return (
+                        transactionDate.getMonth() === currentMonthIndex &&
+                        transactionDate.getFullYear() === currentYear
+                    );
+                });
 
-    const totalExpenses = filteredTransactions
-        .filter((transaction) => transaction.type === 'expense')
-        .reduce((sum, transaction) => sum + transaction.amount, 0);
+                const income = filteredTransactions
+                    .filter((transaction) => transaction.type === 'income')
+                    .reduce((sum, transaction) => sum + parseFloat(transaction.amount), 0);
+
+                const expenses = filteredTransactions
+                    .filter((transaction) => transaction.type === 'expense')
+                    .reduce((sum, transaction) => sum + parseFloat(transaction.amount), 0);
+
+                setTotalIncome(income);
+                setTotalExpenses(expenses);
+
+                // Group expenses by category
+                const groupedExpenses = filteredTransactions
+                    .filter((transaction) => transaction.type === 'expense')
+                    .reduce((acc, transaction) => {
+                        acc[transaction.category] = (acc[transaction.category] || 0) + parseFloat(transaction.amount);
+                        return acc;
+                    }, {});
+
+                setExpensesByCategory(groupedExpenses);
+            } catch (error) {
+                console.error('Error fetching transactions:', error);
+            }
+        };
+
+        fetchBudgetData();
+    }, [currentMonthIndex, currentYear]);
+
+    const handlePrevious = () => {
+        setCurrentMonthIndex((prev) => {
+            if (prev === 0) {
+                setCurrentYear((year) => year - 1); // Move to the previous year
+                return 11; // Set month to December
+            }
+            return prev - 1;
+        });
+    };
+
+    const handleNext = () => {
+        setCurrentMonthIndex((prev) => {
+            if (prev === 11) {
+                setCurrentYear((year) => year + 1); // Move to the next year
+                return 0; // Set month to January
+            }
+            return prev + 1;
+        });
+    };
 
     const remainingBudget = totalIncome - totalExpenses;
-
-    // Group expenses by category
-    const expensesByCategory = filteredTransactions
-        .filter((t) => t.type === 'expense')
-        .reduce((acc, t) => {
-            acc[t.category] = (acc[t.category] || 0) + t.amount;
-            return acc;
-        }, {});
-
-    // Update % Paid for revolving debt
-    const updatedTransactions = transactions.map((transaction) => {
-        if (transaction.type === 'revolving') {
-            const percentageUsed = (transaction.balance / transaction.debtLimit) * 100 || 0; // Current balance as a percentage of debt limit
-            return { ...transaction, percentageUsed: percentageUsed.toFixed(2) };
-        }
-        return transaction;
-    });
 
     // Prepare data for the pie chart
     const chartData = [
@@ -49,45 +87,28 @@ const BudgetManager = ({ transactions }) => {
     ];
 
     const chartOptions = {
-        title: '', // Remove the chart title
-        titleTextStyle: {}, // Clear title styling
+        title: '',
         pieHole: 0.4,
         is3D: false,
-        pieSliceText: 'none', // Disable default slice text
-        tooltip: {
-            trigger: 'focus', // Show tooltips on hover
-        },
-        slices: {
-            0: { color: '#74c0fc' }, // Example color for first category
-            1: { color: '#ff6b6b' }, // Example color for second category
-            2: { color: '#51cf66' }, // Example color for unspent budget
-        },
-        legend: 'none', // Hide the legend
-        pieSliceTextStyle: {
-            fontSize: 12,
-        },
+        legend: 'none',
         chartArea: {
             width: '90%',
             height: '80%',
         },
-        pieStartAngle: 0, // Start the pie chart at a consistent angle
     };
-
-    // Custom formatter for labels
-    const formattedChartData = chartData.map(([category, amount], index) => {
-        if (index === 0) return chartData[0]; // Keep the header row unchanged
-        const percentage = ((amount / totalIncome) * 100).toFixed(1);
-        return [`${category}\n${percentage}%\nP${amount.toLocaleString()}`, amount];
-    });
-
-    const spentPercentage = ((totalExpenses / totalIncome) * 100).toFixed(1);
-    const remainingPercentage = Math.max(((remainingBudget / totalIncome) * 100).toFixed(1), 0);
-    const overspentAmount = Math.max(totalExpenses - totalIncome, 0);
 
     return (
         <div style={{ fontFamily: 'Open Sans, sans-serif', textAlign: 'center' }}>
             <h2 style={{ textAlign: 'center', marginBottom: '20px' }}>Budget Manager</h2>
-            <h3 style={{ textAlign: 'center', marginBottom: '20px' }}>{months[currentMonthIndex]}</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <button onClick={handlePrevious}>
+                    &lt; Previous
+                </button>
+                <h3>{`${months[currentMonthIndex]} ${currentYear}`}</h3> {/* Display month and year */}
+                <button onClick={handleNext}>
+                    Next &gt;
+                </button>
+            </div>
             <div style={{ display: 'flex', justifyContent: 'space-around', marginBottom: '20px' }}>
                 <div>
                     <h3>Total Income</h3>
@@ -143,7 +164,7 @@ const BudgetManager = ({ transactions }) => {
                             position: 'absolute',
                             height: '100%',
                             left: '100%',
-                            width: `${(overspentAmount / totalIncome) * 100}%`,
+                            width: `${(totalExpenses - totalIncome) / totalIncome * 100}%`,
                             backgroundColor: '#D2042D', // Cherry red for overspent section
                             borderRadius: '0 5px 5px 0',
                         }}
@@ -161,7 +182,7 @@ const BudgetManager = ({ transactions }) => {
                         fontWeight: 'bold',
                     }}
                 >
-                    Spent: P{totalExpenses.toLocaleString()} ({spentPercentage}%)
+                    Spent: P{totalExpenses.toLocaleString()} ({((totalExpenses / totalIncome) * 100).toFixed(1)}%)
                 </div>
                 {remainingBudget >= 0 ? (
                     <div
@@ -174,7 +195,7 @@ const BudgetManager = ({ transactions }) => {
                             fontWeight: 'bold',
                         }}
                     >
-                        Left: P{remainingBudget.toLocaleString()} ({remainingPercentage}%)
+                        Left: P{remainingBudget.toLocaleString()} ({((remainingBudget / totalIncome) * 100).toFixed(1)}%)
                     </div>
                 ) : (
                     <div
@@ -188,7 +209,7 @@ const BudgetManager = ({ transactions }) => {
                             fontSize: '16px', // Same size as "Spent" text
                         }}
                     >
-                        Overspent: P{overspentAmount.toLocaleString()}
+                        Overspent: P{(totalExpenses - totalIncome).toLocaleString()}
                     </div>
                 )}
             </div>
@@ -196,17 +217,8 @@ const BudgetManager = ({ transactions }) => {
                 <h3 style={{ fontSize: '30px', fontWeight: 'bold', textAlign: 'center' }}>Spending Breakdown</h3>
                 <Chart
                     chartType="PieChart"
-                    data={formattedChartData}
-                    options={{
-                        ...chartOptions,
-                        pieSliceText: 'none',
-                        pieSliceTextStyle: {
-                            fontSize: 12,
-                        },
-                        tooltip: {
-                            isHtml: true,
-                        },
-                    }}
+                    data={chartData}
+                    options={chartOptions}
                     width="100%"
                     height="400px"
                 />
@@ -215,7 +227,7 @@ const BudgetManager = ({ transactions }) => {
                 <Link to="/">
                     <button>Back to Home</button>
                 </Link>
-                <Link to="/budget-details" state={{ transactions }}>
+                <Link to="/budget-details">
                     <button>View Details</button>
                 </Link>
                 <Link to="/add-transaction">
