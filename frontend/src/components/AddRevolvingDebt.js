@@ -15,12 +15,40 @@ const AddRevolvingDebt = () => {
         setDebt({ ...debt, [field]: value });
     };
 
-    const handleSaveDebt = () => {
-        const storedDebts = JSON.parse(localStorage.getItem('debts')) || [];
-        const newDebt = { ...debt, id: Date.now(), type: 'revolving' };
-        storedDebts.push(newDebt);
-        localStorage.setItem('debts', JSON.stringify(storedDebts));
-        navigate('/debt-management');
+    const handleSaveDebt = async () => {
+        if (!debt.name || !debt.balance || !debt.debtLimit || !debt.interestRate || !debt.minPayment) {
+            alert('Please fill in all required fields.');
+            return;
+        }
+
+        const newDebt = {
+            type: 'Revolving Debt', // Set type to "Revolving Debt"
+            name: debt.name,
+            balance: parseFloat(debt.balance),
+            debtLimit: parseFloat(debt.debtLimit),
+            interestRate: parseFloat(debt.interestRate),
+            minPayment: parseFloat(debt.minPayment),
+        };
+
+        try {
+            const response = await fetch('/api/debts', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(newDebt),
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to save debt');
+            }
+
+            alert('Debt added successfully!');
+            navigate('/debt-management');
+        } catch (error) {
+            console.error('Error saving debt:', error);
+            alert('An error occurred while saving the debt.');
+        }
     };
 
     return (

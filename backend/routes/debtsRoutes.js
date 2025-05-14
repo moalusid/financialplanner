@@ -15,18 +15,18 @@ router.get('/', async (req, res) => {
 
 // Add a new debt
 router.post('/', async (req, res) => {
-    const { type, name, originalAmount, duration, balance, interestRate, minPayment, startDate } = req.body;
+    const { type, name, balance, debtLimit, interestRate, minPayment } = req.body;
 
-    if (!type || !name || !originalAmount || !balance || !interestRate || !minPayment || !startDate) {
-        console.error('Missing required fields:', { type, name, originalAmount, balance, interestRate, minPayment, startDate }); // Debugging log
+    if (!type || !name || !balance || !debtLimit || !interestRate || !minPayment) {
+        console.error('Missing required fields:', { type, name, balance, debtLimit, interestRate, minPayment }); // Debugging log
         return res.status(400).json({ error: 'Missing required fields' });
     }
 
     try {
-        console.log('Inserting debt:', { type, name, originalAmount, duration, balance, interestRate, minPayment, startDate }); // Debugging log
+        console.log('Inserting debt:', { type, name, balance, debtLimit, interestRate, minPayment }); // Debugging log
         const result = await pool.query(
-            'INSERT INTO debts (type, name, original_amount, loan_term, balance, interest_rate, min_payment, start_date) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
-            [type, name, originalAmount, duration, balance, interestRate, minPayment, startDate]
+            'INSERT INTO debts (type, name, balance, debt_limit, interest_rate, min_payment) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+            [type, name, balance, debtLimit, interestRate, minPayment]
         );
         console.log('Debt saved successfully:', result.rows[0]); // Debugging log
         res.status(201).json(result.rows[0]);
