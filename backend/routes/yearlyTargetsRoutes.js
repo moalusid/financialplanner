@@ -5,20 +5,10 @@ const pool = require('../database/config');
 // Get all yearly targets
 router.get('/', async (req, res) => {
     try {
-        // Test database connection
-        const client = await pool.connect();
-        client.release();
-
-        // Execute query
-        const result = await pool.query(`
-            SELECT year, month, category, target
-            FROM yearly_targets
-        `);
-
-        // Ensure response is sent
+        const result = await pool.query('SELECT * FROM yearly_targets');
         res.json(result.rows);
     } catch (error) {
-        console.error('Error fetching yearly targets:', error); // Log only errors
+        console.error('Error fetching yearly targets:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });
