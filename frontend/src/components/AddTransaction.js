@@ -11,7 +11,7 @@ const AddTransaction = ({ onAddTransaction }) => {
     });
     const navigate = useNavigate();
 
-    const handleAddTransaction = (resetAfterAdd = true) => {
+    const handleAddTransaction = async (resetAfterAdd = true) => {
         if (!transaction.type || !transaction.category || !transaction.date) {
             alert('Please fill in all required fields.');
             return;
@@ -20,11 +20,32 @@ const AddTransaction = ({ onAddTransaction }) => {
             alert('Please enter an amount.');
             return;
         }
-        onAddTransaction({ ...transaction, amount: parseFloat(transaction.amount) });
-        if (resetAfterAdd) {
-            navigate('/budget-manager');
-        } else {
-            setTransaction({ type: '', category: '', description: '', amount: '', date: '' });
+
+        try {
+            // Send transaction data to the backend
+            const response = await fetch('/api/transactions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ ...transaction, amount: parseFloat(transaction.amount) }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to save transaction');
+            }
+
+            const savedTransaction = await response.json();
+            onAddTransaction(savedTransaction); // Update the parent component with the new transaction
+
+            if (resetAfterAdd) {
+                navigate('/budget-manager');
+            } else {
+                setTransaction({ type: '', category: '', description: '', amount: '', date: '' });
+            }
+        } catch (error) {
+            console.error('Error saving transaction:', error);
+            alert('An error occurred while saving the transaction.');
         }
     };
 

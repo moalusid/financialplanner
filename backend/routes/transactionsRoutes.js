@@ -2,17 +2,34 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../database/config');
 
-// Get all transactions
+// Fetch all transactions
 router.get('/', async (req, res) => {
     try {
-        const result = await pool.query(`
-            SELECT id, date, category, amount, type
-            FROM transactions
-        `);
-        res.json(result.rows); // Send transactions data
+        const result = await pool.query('SELECT * FROM transactions ORDER BY date DESC');
+        res.json(result.rows);
     } catch (error) {
         console.error('Error fetching transactions:', error);
-        res.status(500).json({ error: 'Internal server error' });
+        res.status(500).json({ error: 'Failed to fetch transactions' });
+    }
+});
+
+// Add a new transaction
+router.post('/', async (req, res) => {
+    const { type, category, description, amount, date } = req.body;
+
+    if (!type || !category || !amount || !date) {
+        return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    try {
+        const result = await pool.query(
+            'INSERT INTO transactions (type, category, description, amount, date) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+            [type, category, description, amount, date]
+        );
+        res.status(201).json(result.rows[0]);
+    } catch (error) {
+        console.error('Error saving transaction:', error);
+        res.status(500).json({ error: 'Failed to save transaction' });
     }
 });
 
