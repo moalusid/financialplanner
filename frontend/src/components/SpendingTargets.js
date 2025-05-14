@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
-const SpendingTargets = ({ onUpdateTargets, existingTargets }) => {
+const SpendingTargets = () => {
     const months = [
         'January', 'February', 'March', 'April', 'May', 'June',
         'July', 'August', 'September', 'October', 'November', 'December',
@@ -22,18 +22,33 @@ const SpendingTargets = ({ onUpdateTargets, existingTargets }) => {
         'Other',
     ];
 
-    const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+    const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1); // 1-based month
+    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [targets, setTargets] = useState({});
 
     useEffect(() => {
-        // Load targets for the selected month or initialize blank fields
-        const monthTargets = existingTargets[selectedMonth] || {};
-        const initializedTargets = categories.reduce((acc, category) => {
-            acc[category] = monthTargets[category] || ''; // Blank if no target is set
-            return acc;
-        }, {});
-        setTargets(initializedTargets);
-    }, [selectedMonth, existingTargets]);
+        // Fetch targets for the selected month and year
+        const fetchTargets = async () => {
+            try {
+                const response = await fetch(`/api/yearlyTargets?year=${selectedYear}`);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch targets');
+                }
+                const data = await response.json();
+                const monthTargets = data[selectedYear]?.[selectedMonth] || {};
+                const initializedTargets = categories.reduce((acc, category) => {
+                    acc[category] = monthTargets[category] || ''; // Blank if no target is set
+                    return acc;
+                }, {});
+                setTargets(initializedTargets);
+            } catch (error) {
+                console.error('Error fetching targets:', error);
+                alert('Failed to load spending targets.');
+            }
+        };
+
+        fetchTargets();
+    }, [selectedMonth, selectedYear]);
 
     const handleTargetChange = (category, value) => {
         setTargets((prev) => ({
@@ -42,15 +57,55 @@ const SpendingTargets = ({ onUpdateTargets, existingTargets }) => {
         }));
     };
 
-    const handleSave = () => {
-        onUpdateTargets(selectedMonth, targets);
-        alert('Spending targets saved!');
+    const handleSave = async () => {
+        try {
+            const response = await fetch('/api/yearlyTargets', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    year: selectedYear,
+                    month: selectedMonth,
+                    targets,
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to save targets');
+            }
+
+            alert('Spending targets saved!');
+        } catch (error) {
+            console.error('Error saving targets:', error);
+            alert('Failed to save spending targets.');
+        }
     };
 
-    const handleCopyToNextMonth = () => {
-        if (selectedMonth < months.length - 1) {
-            onUpdateTargets(selectedMonth + 1, targets);
-            alert(`Targets copied to ${months[selectedMonth + 1]}!`);
+    const handleCopyToNextMonth = async () => {
+        if (selectedMonth < months.length) {
+            try {
+                const response = await fetch('/api/yearlyTargets', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        year: selectedMonth === 12 ? selectedYear + 1 : selectedYear, // Increment year if copying to January
+                        month: selectedMonth === 12 ? 1 : selectedMonth + 1, // Set next month, wrap to January if December
+                        targets,
+                    }),
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to copy targets');
+                }
+
+                alert(`Targets copied to ${months[selectedMonth % 12]}!`); // Use modulo to wrap around to January
+            } catch (error) {
+                console.error('Error copying targets:', error);
+                alert('Failed to copy spending targets.');
+            }
         } else {
             alert('Cannot copy targets to the next month as this is the last month.');
         }
@@ -68,7 +123,7 @@ const SpendingTargets = ({ onUpdateTargets, existingTargets }) => {
                     style={{ marginLeft: '10px' }}
                 >
                     {months.map((month, index) => (
-                        <option key={month} value={index}>
+                        <option key={month} value={index + 1}>
                             {month}
                         </option>
                     ))}
