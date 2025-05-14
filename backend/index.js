@@ -9,7 +9,6 @@ const calculatorRoutes = require('./routes/calculatorRoutes');
 const incomeRoutes = require('./routes/incomeroutes');
 const transactionsRoutes = require('./routes/transactionsRoutes');
 const debtsRoutes = require('./routes/debtsRoutes');
-const yearlyTargetsRoutes = require('./routes/yearlyTargetsRoutes');
 const yearlyTargetRoutes = require('./routes/yearlyTargetRoutes'); // Import the route
 
 const app = express();
@@ -23,7 +22,6 @@ app.use('/api/calculator', calculatorRoutes);
 app.use('/api/income', incomeRoutes);
 app.use('/api/transactions', transactionsRoutes);
 app.use('/api/debts', debtsRoutes);
-app.use('/api/yearly-targets', yearlyTargetsRoutes);
 app.use('/api/yearlyTargets', yearlyTargetRoutes); // Register the route
 
 // Serve React app
