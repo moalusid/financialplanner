@@ -1,27 +1,46 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CircularProgress, Box, Typography, Modal, TextField, Button, Card, CardContent, LinearProgress } from '@mui/material';
+import { Typography, Card, CardContent, LinearProgress } from '@mui/material';
 
 const DebtManagement = () => {
     const [debts, setDebts] = useState([]);
+    const [totalOutstandingDebt, setTotalOutstandingDebt] = useState(0);
+    const [totalMonthlyPayments, setTotalMonthlyPayments] = useState(0);
+    const [averageInterestRate, setAverageInterestRate] = useState(0);
     const navigate = useNavigate();
 
     useEffect(() => {
-        const storedDebts = JSON.parse(localStorage.getItem('debts')) || [];
-        setDebts(storedDebts);
+        const fetchDebts = async () => {
+            try {
+                const response = await fetch('/api/debts');
+                if (!response.ok) {
+                    throw new Error('Failed to fetch debts');
+                }
+                const data = await response.json();
+                setDebts(data);
+
+                // Calculate summary values
+                const totalDebt = data.reduce((sum, debt) => sum + (parseFloat(debt.balance) || 0), 0);
+                const totalPayments = data.reduce((sum, debt) => sum + (parseFloat(debt.min_payment) || 0), 0);
+                const avgInterestRate =
+                    data.length > 0
+                        ? data.reduce((sum, debt) => sum + (parseFloat(debt.interest_rate) || 0), 0) / data.length
+                        : 0;
+
+                setTotalOutstandingDebt(totalDebt);
+                setTotalMonthlyPayments(totalPayments);
+                setAverageInterestRate(avgInterestRate);
+            } catch (error) {
+                console.error('Error fetching debts:', error);
+            }
+        };
+
+        fetchDebts();
     }, []);
 
     const handleTileClick = (debtId) => {
         navigate(`/debt-details/${debtId}`);
     };
-
-    // Calculate summary values
-    const totalOutstandingDebt = debts.reduce((sum, debt) => sum + (debt.balance || 0), 0);
-    const totalMonthlyPayments = debts.reduce((sum, debt) => sum + (debt.minPayment || 0), 0);
-    const averageInterestRate =
-        debts.length > 0
-            ? debts.reduce((sum, debt) => sum + (debt.interestRate || 0), 0) / debts.length
-            : 0;
 
     return (
         <div style={{ maxWidth: '1000px', margin: '0 auto', fontFamily: 'Open Sans, sans-serif' }}>
@@ -34,7 +53,7 @@ const DebtManagement = () => {
                             Total Outstanding Debt
                         </Typography>
                         <Typography variant="h5" color="textPrimary">
-                            P{totalOutstandingDebt.toLocaleString()}
+                            {totalOutstandingDebt}
                         </Typography>
                     </CardContent>
                 </Card>
@@ -44,7 +63,7 @@ const DebtManagement = () => {
                             Total Monthly Payments
                         </Typography>
                         <Typography variant="h5" color="textPrimary">
-                            P{totalMonthlyPayments.toLocaleString()}
+                            {totalMonthlyPayments}
                         </Typography>
                     </CardContent>
                 </Card>
@@ -66,9 +85,13 @@ const DebtManagement = () => {
             </Link>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
                 {debts.map((debt) => {
+                    const balance = parseFloat(debt.balance) || 0; // Ensure balance is a number
+                    const minPayment = parseFloat(debt.min_payment) || 0; // Ensure min_payment is a number
+                    const interestRate = parseFloat(debt.interest_rate) || 0; // Ensure interestRate is a number
+
                     const percentageUsed = debt.type === 'revolving'
-                        ? (debt.balance / debt.debtLimit) * 100
-                        : ((debt.originalAmount - debt.balance) / debt.originalAmount) * 100 || 0;
+                        ? (balance / (debt.debt_limit || 1)) * 100 // Avoid division by zero
+                        : ((debt.original_amount - balance) / (debt.original_amount || 1)) * 100 || 0;
 
                     return (
                         <div
@@ -85,7 +108,7 @@ const DebtManagement = () => {
                         >
                             <h3 style={{ marginBottom: '20px' }}>{debt.name || 'Unnamed Debt'}</h3>
                             <Typography variant="h6" component="div" color="textPrimary" style={{ marginBottom: '10px' }}>
-                                Current Balance: P{debt.balance.toLocaleString()}
+                                Current Balance: {balance}
                             </Typography>
                             <LinearProgress
                                 variant="determinate"
@@ -101,14 +124,14 @@ const DebtManagement = () => {
                                 color="textPrimary"
                                 sx={{ fontWeight: 'bold', marginTop: '10px' }}
                             >
-                                {debt.interestRate}%
+                                {interestRate.toFixed(2)}%
                             </Typography>
                             <Typography
                                 variant="body2"
                                 component="div"
                                 sx={{ color: 'red', marginTop: '5px' }}
                             >
-                                Monthly Payment: P{debt.minPayment.toLocaleString()}
+                                Monthly Payment: {minPayment}
                             </Typography>
                         </div>
                     );
@@ -156,7 +179,7 @@ const DebtManagement = () => {
                                     {scenarios.map(({ extra, monthsSaved, interestSaved }) => (
                                         <li key={extra}>
                                             <Typography variant="body2" color="textSecondary">
-                                                Paying {extra}% extra: Save {monthsSaved} months and P{interestSaved.toFixed(2)} in interest.
+                                                Paying {extra}% extra: Save {monthsSaved} months and {interestSaved.toFixed(2)} in interest.
                                             </Typography>
                                         </li>
                                     ))}
@@ -170,7 +193,7 @@ const DebtManagement = () => {
                         </Typography>
                         {debts.length > 0 && (() => {
                             const smallestDebt = debts.reduce((prev, curr) => (prev.balance < curr.balance ? prev : curr));
-                            const scenarios = [0.1, 0.2, 0.5].map(extra => {
+                            const scenarios = [0.1, 0.2, .5].map(extra => {
                                 const extraPayment = smallestDebt.balance * extra;
                                 const totalPayment = smallestDebt.balance + extraPayment;
                                 const monthsSaved = Math.ceil(smallestDebt.balance / smallestDebt.minPayment) - Math.ceil(totalPayment / smallestDebt.minPayment);
@@ -182,7 +205,7 @@ const DebtManagement = () => {
                                     {scenarios.map(({ extra, monthsSaved, interestSaved }) => (
                                         <li key={extra}>
                                             <Typography variant="body2" color="textSecondary">
-                                                Paying {extra}% of balance extra: Save {monthsSaved} months and P{interestSaved.toFixed(2)} in interest.
+                                                Paying {extra}% of balance extra: Save {monthsSaved} months and {interestSaved.toFixed(2)} in interest.
                                             </Typography>
                                         </li>
                                     ))}
