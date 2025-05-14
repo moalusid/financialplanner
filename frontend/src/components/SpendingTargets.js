@@ -50,6 +50,26 @@ const SpendingTargets = () => {
         fetchTargets();
     }, [selectedMonth, selectedYear]);
 
+    const handleMonthChange = (value) => {
+        const [month, year] = value.split('-').map(Number);
+        setSelectedMonth(month);
+        setSelectedYear(year);
+    };
+
+    const generateMonthYearOptions = () => {
+        const options = [];
+        const currentYear = new Date().getFullYear();
+
+        // Generate options for the past year, current year, and next year
+        for (let year = currentYear - 1; year <= currentYear + 1; year++) {
+            for (let month = 1; month <= 12; month++) {
+                options.push({ month, year });
+            }
+        }
+
+        return options;
+    };
+
     const handleTargetChange = (category, value) => {
         setTargets((prev) => ({
             ...prev,
@@ -118,13 +138,13 @@ const SpendingTargets = () => {
                 <label htmlFor="month">Select Month:</label>
                 <select
                     id="month"
-                    value={selectedMonth}
-                    onChange={(e) => setSelectedMonth(parseInt(e.target.value, 10))}
+                    value={`${selectedMonth}-${selectedYear}`}
+                    onChange={(e) => handleMonthChange(e.target.value)}
                     style={{ marginLeft: '10px' }}
                 >
-                    {months.map((month, index) => (
-                        <option key={month} value={index + 1}>
-                            {month}
+                    {generateMonthYearOptions().map(({ month, year }) => (
+                        <option key={`${month}-${year}`} value={`${month}-${year}`}>
+                            {months[month - 1]} {year}
                         </option>
                     ))}
                 </select>
