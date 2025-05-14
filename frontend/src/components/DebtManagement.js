@@ -9,6 +9,13 @@ const DebtManagement = () => {
     const [averageInterestRate, setAverageInterestRate] = useState(0);
     const navigate = useNavigate();
 
+    const formatCurrency = (amount) => {
+        return new Intl.NumberFormat('en-BW', {
+            style: 'currency',
+            currency: 'BWP',
+        }).format(amount);
+    };
+
     useEffect(() => {
         const fetchDebts = async () => {
             try {
@@ -53,7 +60,7 @@ const DebtManagement = () => {
                             Total Outstanding Debt
                         </Typography>
                         <Typography variant="h5" color="textPrimary">
-                            {totalOutstandingDebt}
+                            {formatCurrency(totalOutstandingDebt)}
                         </Typography>
                     </CardContent>
                 </Card>
@@ -63,7 +70,7 @@ const DebtManagement = () => {
                             Total Monthly Payments
                         </Typography>
                         <Typography variant="h5" color="textPrimary">
-                            {totalMonthlyPayments}
+                            {formatCurrency(totalMonthlyPayments)}
                         </Typography>
                     </CardContent>
                 </Card>
@@ -108,7 +115,7 @@ const DebtManagement = () => {
                         >
                             <h3 style={{ marginBottom: '20px' }}>{debt.name || 'Unnamed Debt'}</h3>
                             <Typography variant="h6" component="div" color="textPrimary" style={{ marginBottom: '10px' }}>
-                                Current Balance: {balance}
+                                Current Balance: {formatCurrency(balance)}
                             </Typography>
                             <LinearProgress
                                 variant="determinate"
@@ -131,7 +138,7 @@ const DebtManagement = () => {
                                 component="div"
                                 sx={{ color: 'red', marginTop: '5px' }}
                             >
-                                Monthly Payment: {minPayment}
+                                Monthly Payment: {formatCurrency(minPayment)}
                             </Typography>
                         </div>
                     );
