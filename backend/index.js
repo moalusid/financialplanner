@@ -6,8 +6,8 @@ const path = require('path');
 const pool = require('./database/config');
 const calculatorRoutes = require('./routes/calculatorRoutes');
 const incomeRoutes = require('./routes/incomeroutes');
-const transactionsRoutes = require('./routes/transactionsRoutes'); // Ensure this is imported
-const debtsRoutes = require('./routes/debtsRoutes');
+const transactionsRoutes = require('./routes/transactionsRoutes');
+const debtsRoutes = require('./routes/debtsRoutes'); // Ensure this is imported
 const yearlyTargetRoutes = require('./routes/yearlyTargetRoutes');
 
 const app = express();
@@ -19,8 +19,8 @@ app.use(express.json());
 // Routes
 app.use('/api/calculator', calculatorRoutes);
 app.use('/api/income', incomeRoutes);
-app.use('/api/transactions', transactionsRoutes); // Ensure this is registered
-app.use('/api/debts', debtsRoutes);
+app.use('/api/transactions', transactionsRoutes);
+app.use('/api/debts', debtsRoutes); // Ensure this is registered
 app.use('/api/yearlyTargets', yearlyTargetRoutes);
 
 // Serve React app

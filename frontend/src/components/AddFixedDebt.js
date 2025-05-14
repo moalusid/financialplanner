@@ -10,23 +10,45 @@ const AddFixedDebt = () => {
         balance: '',
         interestRate: '',
         minPayment: '',
-        paid: '',
+        startDate: '', // Add startDate field
     });
 
-    const handleAddDebt = () => {
-        const existingDebts = JSON.parse(localStorage.getItem('debts')) || [];
+    const handleAddDebt = async () => {
+        if (!debt.name || !debt.originalAmount || !debt.balance || !debt.interestRate || !debt.minPayment || !debt.startDate) {
+            alert('Please fill in all required fields.');
+            return;
+        }
+
         const newDebt = {
-            id: existingDebts.length + 1,
+            type: 'Fixed Debt', // Set type to "Fixed Debt"
             name: debt.name || 'Unnamed Debt',
             originalAmount: parseFloat(debt.originalAmount) || 0,
             duration: parseInt(debt.duration, 10) || 0,
             balance: parseFloat(debt.balance) || 0,
             interestRate: parseFloat(debt.interestRate) || 0,
             minPayment: parseFloat(debt.minPayment) || 0,
-            paid: parseFloat(debt.originalAmount) - parseFloat(debt.balance) || 0, // Calculate amount paid
+            startDate: debt.startDate, // Include startDate
         };
-        localStorage.setItem('debts', JSON.stringify([...existingDebts, newDebt]));
-        navigate('/debt-management');
+
+        try {
+            const response = await fetch('/api/debts', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(newDebt),
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to save debt');
+            }
+
+            alert('Debt added successfully!');
+            navigate('/debt-management');
+        } catch (error) {
+            console.error('Error saving debt:', error);
+            alert('An error occurred while saving the debt.');
+        }
     };
 
     return (
@@ -45,6 +67,13 @@ const AddFixedDebt = () => {
                     placeholder="Original Debt Amount"
                     value={debt.originalAmount}
                     onChange={(e) => setDebt({ ...debt, originalAmount: e.target.value })}
+                    style={{ width: '100%', marginBottom: '10px', padding: '8px' }}
+                />
+                <input
+                    type="date" // Move date picker for start date here
+                    placeholder="Loan Start Date dd/mm/yyyy"
+                    value={debt.startDate}
+                    onChange={(e) => setDebt({ ...debt, startDate: e.target.value })}
                     style={{ width: '100%', marginBottom: '10px', padding: '8px' }}
                 />
                 <input
