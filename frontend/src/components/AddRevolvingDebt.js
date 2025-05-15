@@ -22,7 +22,7 @@ const AddRevolvingDebt = () => {
         }
 
         const newDebt = {
-            type: 'Revolving Debt', // Set type to "Revolving Debt"
+            type: 'Revolving', // Set type to "Revolving Debt"
             name: debt.name,
             balance: parseFloat(debt.balance),
             debtLimit: parseFloat(debt.debtLimit),

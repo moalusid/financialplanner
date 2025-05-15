@@ -20,7 +20,7 @@ const AddFixedDebt = () => {
         }
 
         const newDebt = {
-            type: 'Fixed Debt', // Set type to "Fixed Debt"
+            type: 'Fixed', // Set type to "Fixed Debt"
             name: debt.name || 'Unnamed Debt',
             originalAmount: parseFloat(debt.originalAmount) || 0,
             duration: parseInt(debt.duration, 10) || 0,
