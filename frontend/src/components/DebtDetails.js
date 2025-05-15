@@ -38,6 +38,7 @@ const DebtDetails = () => {
                     startDate: data.start_date, // Map start_date to startDate
                     interestRate: data.interest_rate, // Map interest_rate to interestRate
                     minPayment: data.min_payment, // Map min_payment to minPayment
+                    debtLimit: data.debt_limit, // Map debt_limit to debtLimit
                 });
             } catch (error) {
                 console.error('Error fetching debt:', error);
@@ -61,6 +62,7 @@ const DebtDetails = () => {
                     start_date: debt.startDate, // Map startDate to start_date
                     interest_rate: debt.interestRate, // Map interestRate to interest_rate
                     min_payment: debt.minPayment, // Map minPayment to min_payment
+                    debt_limit: debt.debtLimit, // Map debtLimit to debt_limit
                 }),
             });
 
@@ -221,19 +223,24 @@ const DebtDetails = () => {
             ) : (
                 <>
                     <p><strong>Name:</strong> {debt.name || 'Unnamed Debt'}</p>
-                    {debt.type === 'revolving' && (
-                        <p><strong>Debt Limit:</strong> {formatCurrency(debt.debtLimit)}</p>
-                    )}
-                    {debt.type !== 'revolving' && (
+                    {debt.type === 'Fixed' && (
                         <>
                             <p><strong>Original Loan Amount:</strong> {formatCurrency(debt.originalAmount)}</p>
                             <p><strong>Loan Term:</strong> {debt.loanTerm} Months</p>
                             <p><strong>Start Date:</strong> {formatDate(debt.startDate)}</p>
+                            <p><strong>Balance:</strong> {formatCurrency(debt.balance)}</p>
+                            <p><strong>Interest Rate:</strong> {debt.interestRate}%</p>
+                            <p><strong>Minimum Payment:</strong> {formatCurrency(debt.minPayment)}</p>
                         </>
                     )}
-                    <p><strong>Balance:</strong> {formatCurrency(debt.balance)}</p>
-                    <p><strong>Interest Rate:</strong> {debt.interestRate}%</p>
-                    <p><strong>Minimum Payment:</strong> {formatCurrency(debt.minPayment)}</p>
+                    {debt.type === 'Revolving' && (
+                        <>
+                            <p><strong>Debt Limit:</strong> {formatCurrency(debt.debtLimit)}</p>
+                            <p><strong>Balance:</strong> {formatCurrency(debt.balance)}</p>
+                            <p><strong>Interest Rate:</strong> {debt.interestRate}%</p>
+                            <p><strong>Minimum Payment:</strong> {formatCurrency(debt.minPayment)}</p>
+                        </>
+                    )}
                     <button
                         onClick={() => setIsEditing(true)}
                         style={{
