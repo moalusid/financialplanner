@@ -26,6 +26,7 @@ const AddRevolvingDebt = () => {
             name: debt.name,
             balance: parseFloat(debt.balance),
             debtLimit: parseFloat(debt.debtLimit),
+            original_amount: parseFloat(debt.debtLimit), // Copy debtLimit to original_amount
             interestRate: parseFloat(debt.interestRate),
             minPayment: parseFloat(debt.minPayment),
         };

@@ -19,7 +19,7 @@ const DebtManagement = () => {
     useEffect(() => {
         const fetchDebts = async () => {
             try {
-                const response = await fetch('/api/debts');
+                const response = await fetch('/api/debts'); // Fetch from the debts table in the backend
                 if (!response.ok) {
                     throw new Error('Failed to fetch debts');
                 }
@@ -97,7 +97,11 @@ const DebtManagement = () => {
                     const interestRate = parseFloat(debt.interest_rate) || 0; // Ensure interestRate is a number
 
                     const percentageUsed = debt.type === 'revolving'
-                        ? (balance / (debt.debt_limit || 1)) * 100 // Avoid division by zero
+                        ? (balance / (debt.debt_limit || 1)) * 100 // Correct calculation for revolving debt
+                        : ((debt.original_amount - balance) / (debt.original_amount || 1)) * 100 || 0;
+
+                    const progressValue = debt.type === 'revolving'
+                        ? (balance / (debt.debt_limit || 1)) * 100 // Correct progress bar for revolving debt
                         : ((debt.original_amount - balance) / (debt.original_amount || 1)) * 100 || 0;
 
                     return (
@@ -119,7 +123,7 @@ const DebtManagement = () => {
                             </Typography>
                             <LinearProgress
                                 variant="determinate"
-                                value={percentageUsed}
+                                value={progressValue}
                                 style={{ height: '20px', borderRadius: '10px', marginBottom: '10px' }}
                             />
                             <Typography variant="body2" component="div" color="textSecondary">

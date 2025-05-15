@@ -50,20 +50,22 @@ const DebtDetails = () => {
 
     const handleSaveChanges = async () => {
         try {
+            const updatedDebt = {
+                ...debt,
+                original_amount: debt.type === 'revolving' ? debt.debtLimit : debt.originalAmount, // Copy debtLimit to original_amount for revolving debt
+                loan_term: debt.loanTerm, // Map loanTerm to loan_term
+                start_date: debt.startDate, // Map startDate to start_date
+                interest_rate: debt.interestRate, // Map interestRate to interest_rate
+                min_payment: debt.minPayment, // Map minPayment to min_payment
+                debt_limit: debt.debtLimit, // Map debtLimit to debt_limit
+            };
+
             const response = await fetch(`/api/debts/${id}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    ...debt,
-                    original_amount: debt.originalAmount, // Map originalAmount to original_amount
-                    loan_term: debt.loanTerm, // Map loanTerm to loan_term
-                    start_date: debt.startDate, // Map startDate to start_date
-                    interest_rate: debt.interestRate, // Map interestRate to interest_rate
-                    min_payment: debt.minPayment, // Map minPayment to min_payment
-                    debt_limit: debt.debtLimit, // Map debtLimit to debt_limit
-                }),
+                body: JSON.stringify(updatedDebt),
             });
 
             if (!response.ok) {
