@@ -1,5 +1,42 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { Bar } from 'react-chartjs-2';
+import { Chart, CategoryScale, LinearScale, BarElement, LineElement, Tooltip, Legend } from 'chart.js';
+import { Typography } from '@mui/material';
+Chart.register(CategoryScale, LinearScale, BarElement, LineElement, Tooltip, Legend);
+
+// If you see "Module not found: Error: Can't resolve 'react-chartjs-2'"
+// You need to install the package in your project root (frontend folder):
+// Run this command in your terminal:
+//    npm install react-chartjs-2 chart.js
+
+function calculateAmortisationSchedule(debt, monthlyPayment) {
+    let balance = parseFloat(debt.balance);
+    const monthlyRate = parseFloat(debt.interestRate || debt.interest_rate) / 12 / 100;
+    let schedule = [];
+    let month = 0;
+    let totalInterest = 0;
+
+    while (balance > 0 && month < 600) {
+        const interest = balance * monthlyRate;
+        let principalPayment = monthlyPayment - interest;
+        if (principalPayment <= 0) break;
+        let payment = Math.min(monthlyPayment, balance + interest);
+        let principal = payment - interest;
+        balance -= principal;
+        totalInterest += interest;
+        schedule.push({
+            month: month + 1,
+            payment: payment,
+            principal: principal,
+            interest: interest,
+            balance: Math.max(balance, 0),
+            totalInterest: totalInterest
+        });
+        month++;
+    }
+    return schedule;
+}
 
 const DebtDetails = () => {
     const { id } = useParams();
@@ -18,7 +55,7 @@ const DebtDetails = () => {
         if (!dateString) return 'N/A';
         const date = new Date(dateString);
         const day = String(date.getDate()).padStart(2, '0');
-        const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-based
+        const month = String(date.getMonth() + 1).padStart(2, '0');
         const year = date.getFullYear();
         return `${day}-${month}-${year}`;
     };
@@ -33,12 +70,12 @@ const DebtDetails = () => {
                 const data = await response.json();
                 setDebt({
                     ...data,
-                    originalAmount: data.original_amount, // Map original_amount to originalAmount
-                    loanTerm: data.loan_term, // Map loan_term to loanTerm
-                    startDate: data.start_date, // Map start_date to startDate
-                    interestRate: data.interest_rate, // Map interest_rate to interestRate
-                    minPayment: data.min_payment, // Map min_payment to minPayment
-                    debtLimit: data.debt_limit, // Map debt_limit to debtLimit
+                    originalAmount: data.original_amount,
+                    loanTerm: data.loan_term,
+                    startDate: data.start_date,
+                    interestRate: data.interest_rate,
+                    minPayment: data.min_payment,
+                    debtLimit: data.debt_limit,
                 });
             } catch (error) {
                 console.error('Error fetching debt:', error);
@@ -52,12 +89,12 @@ const DebtDetails = () => {
         try {
             const updatedDebt = {
                 ...debt,
-                original_amount: debt.type === 'revolving' ? debt.debtLimit : debt.originalAmount, // Copy debtLimit to original_amount for revolving debt
-                loan_term: debt.loanTerm, // Map loanTerm to loan_term
-                start_date: debt.startDate, // Map startDate to start_date
-                interest_rate: debt.interestRate, // Map interestRate to interest_rate
-                min_payment: debt.minPayment, // Map minPayment to min_payment
-                debt_limit: debt.debtLimit, // Map debtLimit to debt_limit
+                original_amount: debt.type === 'revolving' ? debt.debtLimit : debt.originalAmount,
+                loan_term: debt.loanTerm,
+                start_date: debt.startDate,
+                interest_rate: debt.interestRate,
+                min_payment: debt.minPayment,
+                debt_limit: debt.debtLimit,
             };
 
             const response = await fetch(`/api/debts/${id}`, {
@@ -102,7 +139,7 @@ const DebtDetails = () => {
         return <p>Loading...</p>;
     }
 
-    const originalAmount = debt.originalAmount || 0; // Fallback for undefined originalAmount
+    const originalAmount = debt.originalAmount || 0;
     const amountPaid = debt.type === 'revolving'
         ? debt.debtLimit - debt.balance
         : originalAmount - debt.balance;
@@ -110,6 +147,105 @@ const DebtDetails = () => {
     const percentagePaid = debt.type === 'revolving'
         ? (1 - (debt.balance / debt.debtLimit)) * 100
         : (amountPaid / originalAmount) * 100;
+
+    const schedule = calculateAmortisationSchedule(debt, debt.minPayment || debt.min_payment || 0);
+
+    // Prepare data for bar/line chart: show actual payment, interest, principal, and balance
+    const paymentData = [];
+    const interestPortion = [];
+    const principalPortion = [];
+    const balanceData = [];
+    const labels = [];
+
+    // Get current date for month labels
+    const now = new Date();
+    schedule.forEach((row, idx) => {
+        paymentData.push(row.payment);
+        interestPortion.push(row.interest);
+        principalPortion.push(row.principal);
+        balanceData.push(row.balance);
+
+        // Calculate label as calendar month
+        const labelDate = new Date(now.getFullYear(), now.getMonth() + idx, 1);
+        const monthLabel = labelDate.toLocaleString('default', { month: 'short', year: 'numeric' });
+        labels.push(monthLabel);
+    });
+
+    const chartData = {
+        labels,
+        datasets: [
+            {
+                type: 'line',
+                label: 'Balance',
+                data: balanceData,
+                borderColor: '#1976d2',
+                backgroundColor: 'rgba(25, 118, 210, 0.1)',
+                yAxisID: 'y',
+                tension: 0.2,
+                pointRadius: 0,
+                order: 1,
+            },
+            {
+                type: 'bar',
+                label: 'Principal Portion',
+                data: principalPortion,
+                backgroundColor: 'rgba(76, 175, 80, 0.7)',
+                yAxisID: 'y1',
+                stack: 'Stack 0',
+                order: 2,
+            },
+            {
+                type: 'bar',
+                label: 'Interest Portion',
+                data: interestPortion,
+                backgroundColor: 'rgba(244, 67, 54, 0.7)',
+                yAxisID: 'y1',
+                stack: 'Stack 0',
+                order: 2,
+            },
+            {
+                type: 'bar',
+                label: 'Monthly Payment',
+                data: paymentData,
+                backgroundColor: 'rgba(33, 150, 243, 0.3)',
+                yAxisID: 'y1',
+                stack: 'Stack 1',
+                order: 0,
+                borderWidth: 0,
+                barPercentage: 1.0,
+                categoryPercentage: 1.0,
+            }
+        ]
+    };
+
+    const chartOptions = {
+        responsive: true,
+        plugins: {
+            legend: { position: 'top' },
+            tooltip: { mode: 'index', intersect: false }
+        },
+        scales: {
+            y: {
+                type: 'linear',
+                display: true,
+                position: 'left',
+                title: { display: true, text: 'Balance (BWP)' },
+                stacked: false,
+            },
+            y1: {
+                type: 'linear',
+                display: true,
+                position: 'right',
+                title: { display: true, text: 'Payment Breakdown (BWP)' },
+                stacked: true,
+                grid: { drawOnChartArea: false },
+            },
+            x: {
+                stacked: true,
+                title: { display: true, text: 'Month' }
+            }
+        }
+    };
 
     return (
         <div style={{ maxWidth: '600px', margin: '0 auto', fontFamily: 'Open Sans, sans-serif' }}>
@@ -272,6 +408,12 @@ const DebtDetails = () => {
                     </button>
                 </>
             )}
+            <div style={{ margin: '30px 0' }}>
+                <Typography variant="h6" color="textPrimary" style={{ marginBottom: '10px' }}>
+                    Amortisation Payment & Balance Chart
+                </Typography>
+                <Bar data={chartData} options={chartOptions} />
+            </div>
             <Link to="/debt-management">
                 <button
                     style={{
