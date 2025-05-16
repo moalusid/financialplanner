@@ -49,6 +49,84 @@ const DebtManagement = () => {
         navigate(`/debt-details/${debtId}`);
     };
 
+    // Debt reduction analysis helper
+    function calculateAmortisationScenarios(debt, method = 'avalanche') {
+        const scenarios = [];
+
+        // Base scenario: current min payment
+        scenarios.push({
+            label: 'Base (Min Payment)',
+            monthlyPayment: debt.min_payment,
+        });
+
+        // Scenario increases
+        const increments = [0.1, 0.2, 0.5];
+
+        if (method === 'avalanche') {
+            increments.forEach(inc => {
+                scenarios.push({
+                    label: `Min + ${inc * 100}%`,
+                    monthlyPayment: debt.min_payment * (1 + inc),
+                });
+            });
+        } else if (method === 'snowball') {
+            increments.forEach(inc => {
+                scenarios.push({
+                    label: `+${inc * 100}% of Balance`,
+                    monthlyPayment: debt.min_payment + (debt.balance * inc),
+                });
+            });
+        }
+
+        const results = scenarios.map(({ label, monthlyPayment }) => {
+            let balance = debt.balance;
+            let totalInterest = 0;
+            let months = 0;
+            let lastPrincipalPayment = 0; // Track last principal payment
+
+            const monthlyRate = debt.interest_rate / 12 / 100;
+
+            while (balance > 0) {
+                const interest = balance * monthlyRate;
+                totalInterest += interest;
+                let principalPayment = monthlyPayment - interest;
+                lastPrincipalPayment = principalPayment; // Save for use after loop
+
+                // Prevent infinite loop
+                if (principalPayment <= 0) {
+                    return {
+                        scenario: label,
+                        months: null,
+                        days: null,
+                        error: 'Payment too low to cover interest',
+                    };
+                }
+
+                balance -= principalPayment;
+                months++;
+            }
+
+            // Calculate days as: (payment - overpayment) / daily rate
+            const overpayment = Math.abs(balance);
+            let days = 0;
+            if (months > 0 && lastPrincipalPayment > 0) {
+                const dailyRate = monthlyPayment / 30.44;
+                const paymentUsed = monthlyPayment - overpayment;
+                days = Math.ceil(paymentUsed / dailyRate);
+            }
+            const displayMonths = months - 1;
+
+            return {
+                scenario: label,
+                months: displayMonths,
+                days: days,
+                totalInterest: totalInterest.toFixed(2),
+            };
+        });
+
+        return results;
+    }
+
     return (
         <div style={{ maxWidth: '1000px', margin: '0 auto', fontFamily: 'Open Sans, sans-serif' }}>
             <h2 style={{ textAlign: 'center', marginBottom: '20px' }}>Debt Management</h2>
@@ -174,52 +252,127 @@ const DebtManagement = () => {
                 <ul>
                     <li>
                         <Typography variant="body1" color="textPrimary">
-                            <strong>Highest Interest Rate Debt:</strong> {debts.length > 0 ? debts.reduce((prev, curr) => (prev.interestRate > curr.interestRate ? prev : curr)).name : 'N/A'}
+                            <strong>Highest Interest Rate Debt:</strong> {debts.length > 0 ? debts.reduce((prev, curr) => (parseFloat(prev.interest_rate) > parseFloat(curr.interest_rate) ? prev : curr)).name : 'N/A'}
                         </Typography>
                         {debts.length > 0 && (() => {
-                            const highestInterestDebt = debts.reduce((prev, curr) => (prev.interestRate > curr.interestRate ? prev : curr));
-                            const scenarios = [0.1, 0.2, 0.5].map(extra => {
-                                const extraPayment = highestInterestDebt.minPayment * extra;
-                                const totalPayment = highestInterestDebt.minPayment + extraPayment;
-                                const monthsSaved = Math.ceil(highestInterestDebt.balance / totalPayment) - Math.ceil(highestInterestDebt.balance / highestInterestDebt.minPayment);
-                                const interestSaved = monthsSaved * (highestInterestDebt.balance * (highestInterestDebt.interestRate / 100) / 12);
-                                return { extra: extra * 100, monthsSaved, interestSaved };
-                            });
+                            const highestInterestDebt = debts.reduce((prev, curr) => (parseFloat(prev.interest_rate) > parseFloat(curr.interest_rate) ? prev : curr));
+                            const scenarios = calculateAmortisationScenarios(highestInterestDebt, 'avalanche');
+                            const base = scenarios[0];
                             return (
                                 <ul>
-                                    {scenarios.map(({ extra, monthsSaved, interestSaved }) => (
-                                        <li key={extra}>
-                                            <Typography variant="body2" color="textSecondary">
-                                                Paying {extra}% extra: Save {monthsSaved} months and {interestSaved.toFixed(2)} in interest.
-                                            </Typography>
-                                        </li>
-                                    ))}
+                                    {scenarios.map(({ scenario, months, days, totalInterest, error }, idx) => {
+                                        let extraInfo = '';
+                                        if (!error && idx > 0 && base.months !== null && base.days !== null) {
+                                            // Calculate days difference
+                                            const baseTotalDays = base.months * 30.44 + base.days;
+                                            const scenarioTotalDays = months * 30.44 + days;
+                                            const daysSaved = Math.round(baseTotalDays - scenarioTotalDays);
+
+                                            // Calculate interest difference
+                                            const interestSaved = (parseFloat(base.totalInterest) - parseFloat(totalInterest)).toFixed(2);
+
+                                            extraInfo = ` Save yourself ${daysSaved} days and ${interestSaved} interest.`;
+                                        }
+                                        return (
+                                            <li key={scenario}>
+                                                <Typography variant="body2" color="textSecondary">
+                                                    {scenario}: {error ? error : `Payoff in ${months} months and ${days} days, total interest: ${totalInterest}${extraInfo}`}
+                                                </Typography>
+                                            </li>
+                                        );
+                                    })}
                                 </ul>
                             );
                         })()}
                     </li>
                     <li>
                         <Typography variant="body1" color="textPrimary">
-                            <strong>Smallest Debt Balance:</strong> {debts.length > 0 ? debts.reduce((prev, curr) => (prev.balance < curr.balance ? prev : curr)).name : 'N/A'}
+                            <strong>Smallest Debt Balance:</strong> {debts.length > 0 ? debts.reduce((prev, curr) => (parseFloat(prev.balance) < parseFloat(curr.balance) ? prev : curr)).name : 'N/A'}
                         </Typography>
                         {debts.length > 0 && (() => {
-                            const smallestDebt = debts.reduce((prev, curr) => (prev.balance < curr.balance ? prev : curr));
-                            const scenarios = [0.1, 0.2, .5].map(extra => {
-                                const extraPayment = smallestDebt.balance * extra;
-                                const totalPayment = smallestDebt.balance + extraPayment;
-                                const monthsSaved = Math.ceil(smallestDebt.balance / smallestDebt.minPayment) - Math.ceil(totalPayment / smallestDebt.minPayment);
-                                const interestSaved = monthsSaved * (smallestDebt.balance * (smallestDebt.interestRate / 100) / 12);
-                                return { extra: extra * 100, monthsSaved, interestSaved };
+                            const smallestDebt = debts.reduce((prev, curr) => (parseFloat(prev.balance) < parseFloat(curr.balance) ? prev : curr));
+                            // Recalculate scenarios using the current balance for each scenario
+                            const baseBalance = parseFloat(smallestDebt.balance);
+                            const baseMinPayment = parseFloat(smallestDebt.min_payment);
+                            const baseInterestRate = parseFloat(smallestDebt.interest_rate);
+
+                            // Build scenarios using the correct balance for each scenario
+                            const increments = [0, 0.1, 0.2, 0.5];
+                            const scenarios = increments.map((inc, idx) => {
+                                let label, monthlyPayment;
+                                if (idx === 0) {
+                                    label = 'Base (Min Payment)';
+                                    monthlyPayment = baseMinPayment;
+                                } else {
+                                    label = `Min + ${inc * 100}% of Balance`;
+                                    monthlyPayment = baseMinPayment + (baseBalance * inc);
+                                }
+
+                                let balance = baseBalance;
+                                let totalInterest = 0;
+                                let months = 0;
+                                let lastPrincipalPayment = 0;
+
+                                const monthlyRate = baseInterestRate / 12 / 100;
+
+                                while (balance > 0) {
+                                    const interest = balance * monthlyRate;
+                                    totalInterest += interest;
+                                    let principalPayment = monthlyPayment - interest;
+                                    lastPrincipalPayment = principalPayment;
+
+                                    if (principalPayment <= 0) {
+                                        return {
+                                            scenario: label,
+                                            months: null,
+                                            days: null,
+                                            totalInterest: null,
+                                            error: 'Payment too low to cover interest',
+                                        };
+                                    }
+
+                                    balance -= principalPayment;
+                                    months++;
+                                }
+
+                                const overpayment = Math.abs(balance);
+                                let days = 0;
+                                if (months > 0 && lastPrincipalPayment > 0) {
+                                    const dailyRate = monthlyPayment / 30.44;
+                                    const paymentUsed = monthlyPayment - overpayment;
+                                    days = Math.ceil(paymentUsed / dailyRate);
+                                }
+                                const displayMonths = months - 1;
+
+                                return {
+                                    scenario: label,
+                                    months: displayMonths,
+                                    days: days,
+                                    totalInterest: totalInterest.toFixed(2),
+                                    error: null,
+                                };
                             });
+
+                            const base = scenarios[0];
                             return (
                                 <ul>
-                                    {scenarios.map(({ extra, monthsSaved, interestSaved }) => (
-                                        <li key={extra}>
-                                            <Typography variant="body2" color="textSecondary">
-                                                Paying {extra}% of balance extra: Save {monthsSaved} months and {interestSaved.toFixed(2)} in interest.
-                                            </Typography>
-                                        </li>
-                                    ))}
+                                    {scenarios.map(({ scenario, months, days, totalInterest, error }, idx) => {
+                                        let extraInfo = '';
+                                        if (!error && idx > 0 && base.months !== null && base.days !== null) {
+                                            const baseTotalDays = base.months * 30.44 + base.days;
+                                            const scenarioTotalDays = months * 30.44 + days;
+                                            const daysSaved = Math.round(baseTotalDays - scenarioTotalDays);
+                                            const interestSaved = (parseFloat(base.totalInterest) - parseFloat(totalInterest)).toFixed(2);
+                                            extraInfo = ` Save yourself ${daysSaved} days and ${interestSaved} interest.`;
+                                        }
+                                        return (
+                                            <li key={scenario}>
+                                                <Typography variant="body2" color="textSecondary">
+                                                    {scenario}: {error ? error : `Payoff in ${months} months and ${days} days, total interest: ${totalInterest}${extraInfo}`}
+                                                </Typography>
+                                            </li>
+                                        );
+                                    })}
                                 </ul>
                             );
                         })()}
