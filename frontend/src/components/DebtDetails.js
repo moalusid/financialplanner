@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Bar } from 'react-chartjs-2';
-import { Chart, CategoryScale, LinearScale, BarElement, LineElement, Tooltip, Legend } from 'chart.js';
+import { Chart, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Tooltip, Legend } from 'chart.js';
 import { Typography } from '@mui/material';
-Chart.register(CategoryScale, LinearScale, BarElement, LineElement, Tooltip, Legend);
+Chart.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Tooltip, Legend);
 
 // If you see "Module not found: Error: Can't resolve 'react-chartjs-2'"
 // You need to install the package in your project root (frontend folder):
