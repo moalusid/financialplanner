@@ -58,17 +58,35 @@ const DebtManagement = () => {
     };
 
     const calculateProjectedPayoffDate = () => {
-        if (debts.length === 0 || totalMonthlyPayments === 0) return null;
-        
+        console.log('Calculating projected payoff with:', {
+            debtsExist: debts.length > 0,
+            payments: totalMonthlyPayments,
+            debt: totalOutstandingDebt,
+            rate: averageInterestRate
+        });
+
+        if (!totalMonthlyPayments || !totalOutstandingDebt || !averageInterestRate) {
+            console.log('Missing required values for payoff calculation');
+            return null;
+        }
+
         const averageMonthlyRate = averageInterestRate / 100 / 12;
         let balance = totalOutstandingDebt;
         let months = 0;
-        
+
         while (balance > 0 && months < 600) {
             const interest = balance * averageMonthlyRate;
-            balance = balance + interest - totalMonthlyPayments;
+            const newBalance = balance + interest - totalMonthlyPayments;
+            
+            if (newBalance >= balance) {
+                return null;
+            }
+            
+            balance = newBalance;
             months++;
         }
+        
+        if (months >= 600) return null;
         
         const today = new Date();
         const futureDate = new Date(today);
@@ -127,8 +145,14 @@ const DebtManagement = () => {
 
     // Add health score calculation
     const calculateDebtHealthScore = () => {
-        // Copy function from newdash.js
-        // ...implementation...
+        const dti = totalMonthlyPayments && monthlyIncome ? 
+            (totalMonthlyPayments / monthlyIncome) * 100 : 0;
+        
+        if (dti === 0) return 'N/A';
+        if (dti <= 15) return 'Excellent';
+        if (dti <= 30) return 'Good';
+        if (dti <= 40) return 'Fair';
+        return 'Poor';
     };
 
     const calculateAmortisationScenarios = (debt, method = 'avalanche') => {
@@ -246,7 +270,39 @@ const DebtManagement = () => {
         return filtered;
     };
 
-    // Update useEffect to include new calculations
+    const fetchMonthlyIncome = async () => {
+        const now = new Date();
+        // Get current year and month (1-12)
+        const date = new Date();
+        const year = date.getFullYear();
+        const month = date.getMonth() + 1; // getMonth() returns 0-11
+
+        console.log(`Fetching income for ${year}-${month}`);
+        
+        try {
+            const response = await fetch(`/api/transactions/monthly-income/${year}/${month}`, {
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                credentials: 'include'  // Add credentials for session handling
+            });
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Response not ok:', errorText); // Debug log
+                throw new Error('Failed to fetch monthly income');
+            }
+            
+            const data = await response.json();
+            console.log('Received income data:', data); // Debug log
+            setMonthlyIncome(data.totalIncome || 0);
+        } catch (error) {
+            console.error('Error fetching monthly income:', error);
+            setMonthlyIncome(0);
+        }
+    };
+
     useEffect(() => {
         const fetchDebts = async () => {
             try {
@@ -255,44 +311,89 @@ const DebtManagement = () => {
                         'Accept': 'application/json',
                         'Content-Type': 'application/json'
                     },
-                    credentials: 'include' // if using sessions
+                    credentials: 'include'
                 });
                 
                 if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.message || 'Failed to fetch debts');
+                    throw new Error('Failed to fetch debts');
                 }
                 
                 const data = await response.json();
                 setDebts(data);
 
-                // Calculate summary values
+                // Calculate all summary values first
                 const totalDebt = data.reduce((sum, debt) => sum + (parseFloat(debt.balance) || 0), 0);
                 const totalOriginal = data.reduce((sum, debt) => sum + (parseFloat(debt.original_amount) || 0), 0);
-                const totalPayments = data.reduce((sum, debt) => sum + (parseFloat(debt.min_payment) || 0), 0);
-                const avgInterestRate =
-                    data.length > 0
-                        ? data.reduce((sum, debt) => sum + (parseFloat(debt.interest_rate) || 0), 0) / data.length
-                        : 0;
-                const totalInterest = data.reduce((sum, debt) => sum + (parseFloat(debt.interest_paid) || 0), 0);
+                const totalMonthly = data.reduce((sum, debt) => sum + (parseFloat(debt.min_payment) || 0), 0);
+                const avgInterestRate = data.length > 0
+                    ? data.reduce((sum, debt) => sum + (parseFloat(debt.interest_rate) || 0), 0) / data.length
+                    : 0;
 
+                // Calculate total interest including current month's accrual
+                const totalInterest = data.reduce((sum, debt) => {
+                    const monthlyRate = (parseFloat(debt.interest_rate) || 0) / 100 / 12;
+                    const currentMonthInterest = (parseFloat(debt.balance) || 0) * monthlyRate;
+                    return sum + (parseFloat(debt.interest_paid) || 0) + currentMonthInterest;
+                }, 0);
+
+                // Set all basic stats
                 setTotalOutstandingDebt(totalDebt);
                 setTotalOriginalDebt(totalOriginal);
-                setTotalMonthlyPayments(totalPayments);
+                setTotalMonthlyPayments(totalMonthly);
                 setAverageInterestRate(avgInterestRate);
                 setTotalInterestPaid(totalInterest);
-                setDebtToIncomeRatio((totalPayments / monthlyIncome) * 100);
-                setProjectedPayoffDate(calculateProjectedPayoffDate());
+                
+                // Remove this line since we have a separate effect
+                // setProjectedPayoffDate(calculateProjectedPayoffDate());
 
+                // Filter debts last
                 const filtered = filterAndSortDebts(data, filterType, sortField, sortDirection, searchTerm);
                 setFilteredDebts(filtered);
+
+                // Fetch income and update DTI separately
+                await fetchMonthlyIncome();
             } catch (error) {
-                console.error('Error fetching debts:', error);
+                console.error('Error:', error);
             }
         };
 
         fetchDebts();
-    }, [filterType, sortField, sortDirection, searchTerm, monthlyIncome]);
+    }, [filterType, sortField, sortDirection, searchTerm]);
+
+    // Separate effect for DTI updates when monthly income changes
+    useEffect(() => {
+        if (totalMonthlyPayments && monthlyIncome) {
+            const dti = monthlyIncome > 0 
+                ? (totalMonthlyPayments / monthlyIncome) * 100 
+                : 0;
+            setDebtToIncomeRatio(dti);
+        }
+    }, [monthlyIncome, totalMonthlyPayments]);
+
+    // Add effect to refresh monthly income at start of new month
+    useEffect(() => {
+        const timer = setInterval(() => {
+            const now = new Date();
+            if (now.getDate() === 1 && now.getHours() === 0) {
+                fetchMonthlyIncome();
+            }
+        }, 1000 * 60 * 60); // Check every hour
+
+        return () => clearInterval(timer);
+    }, []);
+
+    // Add new effect to fetch monthly income on component mount
+    useEffect(() => {
+        fetchMonthlyIncome();
+    }, []);
+
+    useEffect(() => {
+        if (debts.length > 0 && totalMonthlyPayments && totalOutstandingDebt && averageInterestRate) {
+            const newDate = calculateProjectedPayoffDate();
+            console.log('Setting new projected date:', newDate);
+            setProjectedPayoffDate(newDate);
+        }
+    }, [debts, totalOutstandingDebt, totalMonthlyPayments, averageInterestRate]);
 
     // Add new event handlers
     const handleTabChange = (event, newValue) => {

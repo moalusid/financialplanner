@@ -16,6 +16,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Add logging middleware
+app.use((req, res, next) => {
+    console.log(`${req.method} ${req.url}`);
+    next();
+});
+
 // Routes
 app.use('/api/calculator', calculatorRoutes);
 app.use('/api/income', incomeRoutes);
@@ -38,11 +44,24 @@ app.get('/', (req, res) => {
     res.send('Financial Planner API is running');
 });
 
-// Test the database connection
+// Basic test route
+app.get('/api/test', (req, res) => {
+    res.json({ status: 'API is working' });
+});
+
+// Test PostgreSQL connection
 pool.query('SELECT NOW()', (err, res) => {
     if (err) {
         console.error('Error connecting to the database:', err);
+    } else {
+        console.log('Connected to PostgreSQL');
     }
+});
+
+// Error handler
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({ error: err.message });
 });
 
 // Start the server

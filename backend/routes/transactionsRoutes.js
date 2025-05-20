@@ -66,4 +66,40 @@ router.put('/', async (req, res) => {
     }
 });
 
+// Add new endpoint for monthly income
+router.get('/monthly-income/:year/:month', async (req, res) => {
+    const client = await pool.connect();
+    try {
+        const { year, month } = req.params;
+        console.log(`Calculating income for ${year}-${month}`);
+
+        // First, check what's in the table for debugging
+        const debugQuery = `
+            SELECT * FROM transactions 
+            WHERE EXTRACT(YEAR FROM date) = $1 
+            AND EXTRACT(MONTH FROM date) = $2`;
+        
+        const debugResult = await client.query(debugQuery, [year, month]);
+        console.log('Debug - Found transactions:', debugResult.rows);
+
+        // Now do the actual income calculation
+        const query = `
+            SELECT COALESCE(SUM(amount), 0) as total_income 
+            FROM transactions 
+            WHERE EXTRACT(YEAR FROM date) = $1 
+            AND EXTRACT(MONTH FROM date) = $2 
+            AND type ILIKE 'income'`;  // Changed from category to type, added ILIKE for case-insensitive match
+        
+        const result = await client.query(query, [year, month]);
+        console.log('Query result:', result.rows[0]);
+
+        res.json({ totalIncome: parseFloat(result.rows[0].total_income) });
+    } catch (err) {
+        console.error('Error in monthly-income route:', err);
+        res.status(500).json({ error: err.message });
+    } finally {
+        client.release();
+    }
+});
+
 module.exports = router;
