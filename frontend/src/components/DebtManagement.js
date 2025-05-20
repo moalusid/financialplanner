@@ -3,7 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { 
   Typography, Card, CardContent, LinearProgress, Button, Box, 
   Grid, Tabs, Tab, Divider, Select, MenuItem, FormControl, 
-  InputLabel, TextField, Chip, Stack 
+  InputLabel, TextField, Chip, Stack,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper
 } from '@mui/material';
 import { 
   Add, SortTwoTone, FilterList, ArrowUpward, ArrowDownward,
@@ -429,10 +430,19 @@ const DebtManagement = () => {
     return (
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px', fontFamily: 'Open Sans, sans-serif' }}>
             <Box sx={{ flexGrow: 1 }}>
-                <Typography variant="h4" align="center" gutterBottom sx={{ mb: 4 }}>
-                    Debt Management Dashboard
-                </Typography>
-
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+                    <Typography variant="h4">
+                        Debt Management Dashboard
+                    </Typography>
+                    <Button
+                        variant="contained"
+                        color="primary"
+                        component={Link}
+                        to="/debt-insights"
+                    >
+                        View Debt Insights
+                    </Button>
+                </Box>
                 <Grid container spacing={3}>
                     <Grid item xs={12} sm={6} md={3}>
                         <Card>
