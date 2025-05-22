@@ -19,6 +19,7 @@ import {
     Legend,
 } from 'chart.js';
 import { Add as AddIcon, Remove as RemoveIcon } from '@mui/icons-material';
+import { calculatePayoffDetails, calculateRequiredPayment } from '../utils/financialCalculations';
 
 // Register ChartJS components
 ChartJS.register(
@@ -52,6 +53,9 @@ const DebtInsights = () => {
     const [extraDebt, setExtraDebt] = useState(null);
     const [extraAmount, setExtraAmount] = useState(0);
     const [frequency, setFrequency] = useState('monthly');
+
+    // Add new state for input value
+    const [extraAmountInput, setExtraAmountInput] = useState('');
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('en-BW', {
@@ -107,30 +111,29 @@ const DebtInsights = () => {
         };
     };
 
-    const calculateExtraPaymentImpact = () => {
-        if (!extraDebt || !extraAmount) return null;
-        
-        const basePayment = parseFloat(extraDebt.min_payment);
-        const monthlyExtra = frequency === 'monthly' ? extraAmount : extraAmount / 12;
-        const totalPayment = basePayment + monthlyExtra;
-        
-        let balanceWithExtra = parseFloat(extraDebt.balance);
-        let balanceNormal = parseFloat(extraDebt.balance);
-        let months = 0;
-        
-        // Calculate both scenarios
-        while (balanceWithExtra > 0 && months < 600) {
-            const monthlyInterest = (balanceWithExtra * (extraDebt.interest_rate / 100)) / 12;
-            balanceWithExtra = balanceWithExtra + monthlyInterest - totalPayment;
-            balanceNormal = balanceNormal + monthlyInterest - basePayment;
-            months++;
+    const calculateExtraPaymentImpact = (balance, rate, basePayment, extraPayment) => {
+        try {
+            const originalScenario = calculatePayoffDetails(balance, rate, basePayment);
+            const newScenario = calculatePayoffDetails(balance, rate, basePayment + extraPayment);
+
+            if (!originalScenario || !newScenario) return null;
+
+            const savedDays = originalScenario.totalDays - newScenario.totalDays;
+            const savedMonths = Math.floor(savedDays / 30);
+            const remainingDays = savedDays % 30;
+
+            return {
+                originalDate: originalScenario.payoffDate,
+                modifiedDate: newScenario.payoffDate,
+                originalInterest: originalScenario.totalInterest,
+                modifiedInterest: newScenario.totalInterest,
+                savedMonths,
+                savedDays: remainingDays
+            };
+        } catch (error) {
+            console.error('Error calculating impact:', error);
+            return null;
         }
-        
-        return {
-            monthsSaved: months,
-            interestSaved: balanceNormal - balanceWithExtra,
-            newPayoffDate: new Date(Date.now() + (months * 30.44 * 24 * 60 * 60 * 1000))
-        };
     };
 
     useEffect(() => {
@@ -171,6 +174,16 @@ const DebtInsights = () => {
             controller.abort();
         };
     }, []);
+
+    // Add useEffect for debouncing near other useEffects
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            const value = extraAmountInput.replace(/[^\d]/g, '');
+            setExtraAmount(value ? parseInt(value, 10) : 0);
+        }, 500);
+
+        return () => clearTimeout(timer);
+    }, [extraAmountInput]);
 
     const calculateTotalInterest = (debt) => {
         if (!debt) return 0;
@@ -273,44 +286,92 @@ const DebtInsights = () => {
 
     // Helper Components
     const ComparisonTable = () => (
-        <TableContainer component={Paper}>
-            <Table>
-                <TableHead>
-                    <TableRow>
-                        <TableCell>Metric</TableCell>
-                        <TableCell>{selectedDebt1.name}</TableCell>
-                        <TableCell>{selectedDebt2.name}</TableCell>
-                        <TableCell>Comparison</TableCell>
-                    </TableRow>
-                </TableHead>
-                <TableBody>
-                    <TableRow>
-                        <TableCell>Balance</TableCell>
-                        <TableCell>{formatCurrency(selectedDebt1.balance)}</TableCell>
-                        <TableCell>{formatCurrency(selectedDebt2.balance)}</TableCell>
-                        <TableCell>
-                            {`Difference: ${formatCurrency(Math.abs(selectedDebt1.balance - selectedDebt2.balance))}`}
-                        </TableCell>
-                    </TableRow>
-                    <TableRow>
-                        <TableCell>Interest Rate</TableCell>
-                        <TableCell>{selectedDebt1.interest_rate}%</TableCell>
-                        <TableCell>{selectedDebt2.interest_rate}%</TableCell>
-                        <TableCell>
-                            {`${Math.abs(selectedDebt1.interest_rate - selectedDebt2.interest_rate).toFixed(2)}% difference`}
-                        </TableCell>
-                    </TableRow>
-                    <TableRow>
-                        <TableCell>Monthly Payment</TableCell>
-                        <TableCell>{formatCurrency(selectedDebt1.min_payment)}</TableCell>
-                        <TableCell>{formatCurrency(selectedDebt2.min_payment)}</TableCell>
-                        <TableCell>
-                            {`Difference: ${formatCurrency(Math.abs(selectedDebt1.min_payment - selectedDebt2.min_payment))}`}
-                        </TableCell>
-                    </TableRow>
-                </TableBody>
-            </Table>
-        </TableContainer>
+        <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+            <Card sx={{ maxWidth: 800, width: '100%', bgcolor: '#f8f9fa' }}>
+                <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <Typography variant="h6" gutterBottom align="center" sx={{ mb: 3 }}>
+                        Debt Comparison
+                    </Typography>
+                    <Box sx={{ width: '100%', maxWidth: 700 }}>
+                        <Grid container spacing={3}>
+                            <Grid item xs={12} md={6}>
+                                <Card sx={{ height: '100%', bgcolor: '#e3f2fd' }}>
+                                    <CardContent sx={{ p: 2 }}>
+                                        <Typography variant="h6" color="primary" gutterBottom>
+                                            {selectedDebt1.name}
+                                        </Typography>
+                                        <Stack spacing={2} divider={<Divider flexItem />}>
+                                            <Box>
+                                                <Typography variant="body2" color="textSecondary">Balance</Typography>
+                                                <Typography variant="body1">{formatCurrency(selectedDebt1.balance)}</Typography>
+                                            </Box>
+                                            <Box>
+                                                <Typography variant="body2" color="textSecondary">Interest Rate</Typography>
+                                                <Typography variant="body1">{selectedDebt1.interest_rate}%</Typography>
+                                            </Box>
+                                            <Box>
+                                                <Typography variant="body2" color="textSecondary">Monthly Payment</Typography>
+                                                <Typography variant="body1">{formatCurrency(selectedDebt1.min_payment)}</Typography>
+                                            </Box>
+                                        </Stack>
+                                    </CardContent>
+                                </Card>
+                            </Grid>
+                            <Grid item xs={12} md={6}>
+                                <Card sx={{ height: '100%', bgcolor: '#fff3e0' }}>
+                                    <CardContent sx={{ p: 2 }}>
+                                        <Typography variant="h6" color="secondary" gutterBottom>
+                                            {selectedDebt2.name}
+                                        </Typography>
+                                        <Stack spacing={2} divider={<Divider flexItem />}>
+                                            <Box>
+                                                <Typography variant="body2" color="textSecondary">Balance</Typography>
+                                                <Typography variant="body1">{formatCurrency(selectedDebt2.balance)}</Typography>
+                                            </Box>
+                                            <Box>
+                                                <Typography variant="body2" color="textSecondary">Interest Rate</Typography>
+                                                <Typography variant="body1">{selectedDebt2.interest_rate}%</Typography>
+                                            </Box>
+                                            <Box>
+                                                <Typography variant="body2" color="textSecondary">Monthly Payment</Typography>
+                                                <Typography variant="body1">{formatCurrency(selectedDebt2.min_payment)}</Typography>
+                                            </Box>
+                                        </Stack>
+                                    </CardContent>
+                                </Card>
+                            </Grid>
+                            <Grid item xs={12}>
+                                <Card sx={{ bgcolor: '#fce4ec' }}>
+                                    <CardContent sx={{ p: 2 }}>
+                                        <Typography variant="h6" color="primary" gutterBottom>
+                                            Comparison Analysis
+                                        </Typography>
+                                        <Stack spacing={2} divider={<Divider flexItem />}>
+                                            <Box>
+                                                <Typography variant="body2" color="textSecondary">Balance Difference</Typography>
+                                                <Typography variant="body1">{formatCurrency(Math.abs(selectedDebt1.balance - selectedDebt2.balance))}</Typography>
+                                            </Box>
+                                            <Box>
+                                                <Typography variant="body2" color="textSecondary">Rate Difference</Typography>
+                                                <Typography variant="body1">
+                                                    {Math.abs(selectedDebt1.interest_rate - selectedDebt2.interest_rate).toFixed(2)}%
+                                                </Typography>
+                                            </Box>
+                                            <Box>
+                                                <Typography variant="body2" color="textSecondary">Payment Difference</Typography>
+                                                <Typography variant="body1">
+                                                    {formatCurrency(Math.abs(selectedDebt1.min_payment - selectedDebt2.min_payment))}
+                                                </Typography>
+                                            </Box>
+                                        </Stack>
+                                    </CardContent>
+                                </Card>
+                            </Grid>
+                        </Grid>
+                    </Box>
+                </CardContent>
+            </Card>
+        </Box>
     );
 
     const calculateDaysDifference = (date1, date2) => {
@@ -437,26 +498,26 @@ const DebtInsights = () => {
     };
 
     const ScenarioResults = () => {
-        const currentCalc = calculatePayoffDateAndInterest(
+        const currentCalc = calculatePayoffDetails(
             scenarioDebt.balance,
             scenarioDebt.interest_rate,
             scenarioDebt.min_payment
         );
 
-        const modifiedCalc = calculatePayoffDateAndInterest(
+        const modifiedCalc = calculatePayoffDetails(
             scenarioDebt.balance,
             Number(newRateInput),
             scenarioDebt.min_payment
         );
 
-        // Calculate required payment to maintain same payoff period
-        const requiredPayment = calculatePaymentForNewRate(
-            {
-                ...scenarioDebt,
-                interest_rate: Number(newRateInput)
-            },
-            0
-        ).newPayment;
+        // Required payment to maintain same payoff period
+        const currentMonths = currentCalc?.months || 0;
+        const requiredPayment = calculateRequiredPayment(
+            scenarioDebt.balance,
+            scenarioDebt.interest_rate,
+            Number(newRateInput),
+            scenarioDebt.min_payment
+        );
 
         if (!currentCalc || !modifiedCalc) {
             return (
@@ -473,7 +534,7 @@ const DebtInsights = () => {
             );
         }
 
-        const daysDiff = calculateDaysDifference(currentCalc.payoffDate, modifiedCalc.payoffDate);
+        const savedDays = currentCalc.totalDays - modifiedCalc.totalDays;
         const isEarlier = modifiedCalc.payoffDate < currentCalc.payoffDate;
 
         return (
@@ -584,7 +645,7 @@ const DebtInsights = () => {
                                                     <Typography variant="body2" color="textSecondary">Time Impact</Typography>
                                                     <Typography variant="body1">
                                                         {isEarlier ? 'Earlier by ' : 'Later by '} 
-                                                        {daysDiff} days
+                                                        {Math.abs(savedDays)} days
                                                     </Typography>
                                                 </Box>
                                                 <Box>
@@ -615,30 +676,66 @@ const DebtInsights = () => {
     };
 
     const PaymentImpactResults = () => {
-        const impact = calculateExtraPaymentImpact();
+        const basePayment = extraDebt ? parseFloat(extraDebt.min_payment) : 0;
+        const monthlyExtra = frequency === 'monthly' ? extraAmount : extraAmount / 12;
+        const totalPayment = basePayment + monthlyExtra;
+
+        const impact = calculateExtraPaymentImpact(
+            extraDebt.balance,
+            extraDebt.interest_rate,
+            basePayment,
+            monthlyExtra
+        );
+
         return (
             <Card>
                 <CardContent>
                     <Typography variant="h6" gutterBottom>Payment Impact Analysis</Typography>
-                    {impact && (
-                        <Grid container spacing={2}>
-                            <Grid item xs={12}>
-                                <Typography>
-                                    Time Saved: {impact.monthsSaved} months
+                    <Stack spacing={2}>
+                        <Box>
+                            <Typography variant="body2" color="textSecondary">Current Payment</Typography>
+                            <Typography variant="h6">{formatCurrency(basePayment)}</Typography>
+                        </Box>
+                        <Box>
+                            <Typography variant="body2" color="textSecondary">New Payment</Typography>
+                            <Typography variant="h6" color="primary">
+                                {formatCurrency(totalPayment)}
+                                <Typography component="span" variant="caption" color="success.main" sx={{ ml: 1 }}>
+                                    (+{formatCurrency(monthlyExtra)})
                                 </Typography>
-                            </Grid>
-                            <Grid item xs={12}>
-                                <Typography>
-                                    Interest Saved: {formatCurrency(impact.interestSaved)}
-                                </Typography>
-                            </Grid>
-                            <Grid item xs={12}>
-                                <Typography>
-                                    New Payoff Date: {formatDate(impact.newPayoffDate)}
-                                </Typography>
-                            </Grid>
-                        </Grid>
-                    )}
+                            </Typography>
+                        </Box>
+                        {impact && (
+                            <>
+                                <Box>
+                                    <Typography variant="body2" color="textSecondary">Time Saved</Typography>
+                                    <Typography variant="h6">
+                                        {impact.savedMonths > 0 
+                                            ? `${impact.savedMonths} months${impact.savedDays > 0 ? ` and ${impact.savedDays} days` : ''}`
+                                            : `${impact.savedDays} days`}
+                                    </Typography>
+                                </Box>
+                                <Box>
+                                    <Typography variant="body2" color="textSecondary">Interest Saved</Typography>
+                                    <Typography variant="h6" color="success.main">
+                                        {formatCurrency(impact.originalInterest - impact.modifiedInterest)}
+                                    </Typography>
+                                </Box>
+                                <Box>
+                                    <Typography variant="body2" color="textSecondary">Original Payoff Date</Typography>
+                                    <Typography variant="h6">
+                                        {formatDate(impact.originalDate)}
+                                    </Typography>
+                                </Box>
+                                <Box>
+                                    <Typography variant="body2" color="textSecondary">New Payoff Date</Typography>
+                                    <Typography variant="h6">
+                                        {formatDate(impact.modifiedDate)}
+                                    </Typography>
+                                </Box>
+                            </>
+                        )}
+                    </Stack>
                 </CardContent>
             </Card>
         );
@@ -700,53 +797,26 @@ const DebtInsights = () => {
     };
 
     const calculatePaymentForNewRate = (debt, rateChange) => {
-        try {
-            // Input validation
-            if (!debt || !debt.balance || !debt.interest_rate || !debt.min_payment) {
-                return {
-                    originalPayment: Number(debt.min_payment) || 0,
-                    newPayment: Number(debt.min_payment) || 0,
-                    difference: 0
-                };
-            }
-
-            const P = Number(debt.balance);
-            const originalPayment = Number(debt.min_payment);
-            const oldRate = Number(debt.interest_rate) / 100 / 12;
-            const newRate = (Number(debt.interest_rate) + Number(rateChange)) / 100 / 12;
-
-            // Calculate number of months using current payment and rate
-            const n = Math.ceil(-Math.log(1 - (P * oldRate) / originalPayment) / Math.log(1 + oldRate));
-
-            // Calculate new payment to maintain same payoff period
-            const newPayment = (P * newRate * Math.pow(1 + newRate, n)) / (Math.pow(1 + newRate, n) - 1);
-
-            // Validate results
-            if (!isFinite(newPayment) || isNaN(newPayment)) {
-                return {
-                    originalPayment,
-                    newPayment: originalPayment,
-                    difference: 0
-                };
-            }
-
-            // Round to 2 decimal places
-            const roundedNewPayment = Math.round(newPayment * 100) / 100;
-            const difference = roundedNewPayment - originalPayment;
-
-            return {
-                originalPayment,
-                newPayment: roundedNewPayment,
-                difference: Math.round(difference * 100) / 100
-            };
-        } catch (error) {
-            console.error('Error calculating new payment:', error);
+        if (!debt || !debt.balance || !debt.interest_rate || !debt.min_payment) {
             return {
                 originalPayment: Number(debt.min_payment) || 0,
                 newPayment: Number(debt.min_payment) || 0,
                 difference: 0
             };
         }
+
+        const requiredPayment = calculateRequiredPayment(
+            Number(debt.balance),
+            Number(debt.interest_rate),
+            Number(debt.interest_rate) + Number(rateChange),
+            Number(debt.min_payment)
+        );
+
+        return {
+            originalPayment: Number(debt.min_payment),
+            newPayment: requiredPayment,
+            difference: requiredPayment - Number(debt.min_payment)
+        };
     };
 
     const WhatIfPanel = () => (
@@ -755,83 +825,133 @@ const DebtInsights = () => {
             
             {/* Part 1: Payment Impact Table */}
             <Card sx={{ mb: 4 }}>
-                <CardContent>
-                    <Typography variant="h6" gutterBottom>Monthly Payment Impact Analysis</Typography>
-                    <TableContainer component={Paper}>
-                        <Table>
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell>Debt</TableCell>
-                                    <TableCell align="right">Current Payment</TableCell>
-                                    <TableCell align="right">-1.0%</TableCell>
-                                    <TableCell align="right">-0.5%</TableCell>
-                                    <TableCell align="right">+0.5%</TableCell>
-                                    <TableCell align="right">+1.0%</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {/* Total row first - simplified calculation */}
-                                <TableRow sx={{ bgcolor: '#f5f5f5', fontWeight: 'bold' }}>
-                                    <TableCell component="th">Total Monthly Payment</TableCell>
-                                    <TableCell align="right">
-                                        {formatCurrency(
-                                            debts
-                                                .filter(d => d && d.min_payment)
-                                                .reduce((sum, debt) => sum + Number(debt.min_payment), 0)
-                                        )}
-                                    </TableCell>
-                                    {[-1, -0.5, 0.5, 1].map(change => {
-                                        const totalOriginal = debts
-                                            .filter(d => d && d.min_payment)
-                                            .reduce((sum, debt) => sum + Number(debt.min_payment), 0);
-                                        const totalNew = debts
-                                            .filter(d => d && d.min_payment && d.balance && d.interest_rate)
-                                            .reduce((sum, debt) => {
-                                                const calc = calculatePaymentForNewRate(debt, change);
-                                                return sum + (calc?.newPayment || Number(debt.min_payment));
-                                            }, 0);
-                                        const difference = totalNew - totalOriginal;
-                                        
-                                        return (
-                                            <TableCell 
-                                                key={change} 
-                                                align="right"
-                                                sx={{ color: difference > 0 ? 'error.main' : 'success.main' }}
-                                            >
-                                                {formatCurrency(totalNew)}
-                                                <Typography variant="caption" display="block">
-                                                    ({difference > 0 ? '+' : ''}{formatCurrency(difference)})
-                                                </Typography>
-                                            </TableCell>
-                                        );
-                                    })}
-                                </TableRow>
-                                
-                                {/* Individual debt rows */}
-                                {debts.map(debt => (
-                                    <TableRow key={debt.id}>
-                                        <TableCell>{debt.name}</TableCell>
-                                        <TableCell align="right">{formatCurrency(debt.min_payment)}</TableCell>
-                                        {[-1, -0.5, 0.5, 1].map(change => {
-                                            const calc = calculatePaymentForNewRate(debt, change);
-                                            return (
-                                                <TableCell 
-                                                    key={change} 
-                                                    align="right"
-                                                    sx={{ color: calc.difference > 0 ? 'error.main' : 'success.main' }}
-                                                >
-                                                    {formatCurrency(calc.newPayment)}
-                                                    <Typography variant="caption" display="block">
-                                                        ({calc.difference > 0 ? '+' : ''}{formatCurrency(calc.difference)})
-                                                    </Typography>
-                                                </TableCell>
-                                            );
-                                        })}
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
+                <CardContent sx={{ p: 3 }}>
+                    <Typography variant="h6" gutterBottom align="center">Monthly Payment Impact Analysis</Typography>
+                    <Box sx={{ width: '100%', maxWidth: 1100, margin: '0 auto' }}>
+                        <Stack spacing={3}>  {/* Changed from Grid to Stack */}
+                            <Card sx={{ 
+                                bgcolor: '#f8f9fa',
+                                '& .decrease-col': { bgcolor: '#e8f5e9' },
+                                '& .increase-col': { bgcolor: '#fce4ec' }
+                            }}>
+                                <CardContent>
+                                    <Typography variant="h6" color="primary" gutterBottom>
+                                        Total Monthly Impact
+                                    </Typography>
+                                    <TableContainer>
+                                        <Table size="medium">
+                                            <TableHead>
+                                                <TableRow>
+                                                    <TableCell width="20%">Current Payment</TableCell>
+                                                    <TableCell width="20%" align="right" className="decrease-col">-1.0%</TableCell>
+                                                    <TableCell width="20%" align="right" className="decrease-col">-0.5%</TableCell>
+                                                    <TableCell width="20%" align="right" className="increase-col">+0.5%</TableCell>
+                                                    <TableCell width="20%" align="right" className="increase-col">+1.0%</TableCell>
+                                                </TableRow>
+                                            </TableHead>
+                                            <TableBody>
+                                                <TableRow>
+                                                    <TableCell>
+                                                        {formatCurrency(
+                                                            debts
+                                                                .filter(d => d && d.min_payment)
+                                                                .reduce((sum, debt) => sum + Number(debt.min_payment), 0)
+                                                        )}
+                                                    </TableCell>
+                                                    {[-1, -0.5, 0.5, 1].map(change => {
+                                                        const totalOriginal = debts
+                                                            .filter(d => d && d.min_payment)
+                                                            .reduce((sum, debt) => sum + Number(debt.min_payment), 0);
+                                                        const totalNew = debts
+                                                            .filter(d => d && d.min_payment && d.balance && d.interest_rate)
+                                                            .reduce((sum, debt) => {
+                                                                const calc = calculatePaymentForNewRate(debt, change);
+                                                                return sum + (calc?.newPayment || Number(debt.min_payment));
+                                                            }, 0);
+                                                        const difference = totalNew - totalOriginal;
+                                                        
+                                                        return (
+                                                            <TableCell 
+                                                                key={change} 
+                                                                align="right"
+                                                            >
+                                                                {formatCurrency(totalNew)}
+                                                                <Typography 
+                                                                    variant="caption" 
+                                                                    display="block"
+                                                                    sx={{ 
+                                                                        fontWeight: 'bold',
+                                                                        color: difference > 0 ? 'error.main' : 'success.main'
+                                                                    }}
+                                                                >
+                                                                    ({difference > 0 ? '+' : ''}{formatCurrency(difference)})
+                                                                </Typography>
+                                                            </TableCell>
+                                                        );
+                                                    })}
+                                                </TableRow>
+                                            </TableBody>
+                                        </Table>
+                                    </TableContainer>
+                                </CardContent>
+                            </Card>
+
+                            <Card sx={{ 
+                                bgcolor: '#fff3e0',
+                                '& .decrease-col': { bgcolor: '#e8f5e9' },
+                                '& .increase-col': { bgcolor: '#fce4ec' }
+                            }}>
+                                <CardContent>
+                                    <Typography variant="h6" color="secondary" gutterBottom>
+                                        Individual Debt Impact
+                                    </Typography>
+                                    <TableContainer>
+                                        <Table size="medium">
+                                            <TableHead>
+                                                <TableRow>
+                                                    <TableCell width="20%">Debt Name</TableCell>
+                                                    <TableCell width="20%" align="right">Current</TableCell>
+                                                    <TableCell width="20%" align="right" className="decrease-col">-1.0%</TableCell>
+                                                    <TableCell width="20%" align="right" className="decrease-col">-0.5%</TableCell>
+                                                    <TableCell width="20%" align="right" className="increase-col">+0.5%</TableCell>
+                                                    <TableCell width="20%" align="right" className="increase-col">+1.0%</TableCell>
+                                                </TableRow>
+                                            </TableHead>
+                                            <TableBody>
+                                                {debts.map(debt => (
+                                                    <TableRow key={debt.id}>
+                                                        <TableCell>{debt.name}</TableCell>
+                                                        <TableCell align="right">{formatCurrency(debt.min_payment)}</TableCell>
+                                                        {[-1, -0.5, 0.5, 1].map(change => {
+                                                            const calc = calculatePaymentForNewRate(debt, change);
+                                                            return (
+                                                                <TableCell 
+                                                                    key={change} 
+                                                                    align="right"
+                                                                >
+                                                                    {formatCurrency(calc.newPayment)}
+                                                                    <Typography 
+                                                                        variant="caption" 
+                                                                        display="block"
+                                                                        sx={{ 
+                                                                            fontWeight: 'bold',
+                                                                            color: calc.difference > 0 ? 'error.main' : 'success.main'
+                                                                        }}
+                                                                    >
+                                                                        ({calc.difference > 0 ? '+' : ''}{formatCurrency(calc.difference)})
+                                                                    </Typography>
+                                                                </TableCell>
+                                                            );
+                                                        })}
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </TableContainer>
+                                </CardContent>
+                            </Card>
+                        </Stack>
+                    </Box>
                 </CardContent>
             </Card>
 
@@ -959,11 +1079,23 @@ const DebtInsights = () => {
                         </Select>
                     </FormControl>
                     <TextField
+                        key={extraAmount}  // Add this line to force re-render with new defaultValue
                         fullWidth
                         type="number"
+                        inputProps={{ min: 0 }}
                         label="Extra Payment Amount"
-                        value={extraAmount}
-                        onChange={(e) => setExtraAmount(parseFloat(e.target.value) || 0)}
+                        defaultValue={extraAmount || ''}  // Change empty string to current value
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                const value = e.target.value;
+                                setExtraAmount(value ? Number(value) : 0);
+                                e.target.blur();
+                            }
+                        }}
+                        onBlur={(e) => {
+                            const value = e.target.value;
+                            setExtraAmount(value ? Number(value) : 0);
+                        }}
                         sx={{ mb: 2 }}
                     />
                     <FormControl fullWidth>
