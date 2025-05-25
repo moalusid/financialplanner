@@ -13,7 +13,7 @@ const BudgetManager = () => {
     const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
     const [totalIncome, setTotalIncome] = useState(0);
     const [totalExpenses, setTotalExpenses] = useState(0);
-    const [expensesByCategory, setExpensesByCategory] = useState({});
+    const [expensesByClassification, setExpensesByClassification] = useState({}); // Changed from expensesByCategory
 
     useEffect(() => {
         const fetchBudgetData = async () => {
@@ -40,15 +40,16 @@ const BudgetManager = () => {
                 setTotalIncome(income);
                 setTotalExpenses(expenses);
 
-                // Group expenses by category
+                // Group expenses by classification instead of category
                 const groupedExpenses = filteredTransactions
                     .filter((transaction) => transaction.type === 'expense')
                     .reduce((acc, transaction) => {
-                        acc[transaction.category] = (acc[transaction.category] || 0) + parseFloat(transaction.amount);
+                        const classification = transaction.classification || 'Unclassified';
+                        acc[classification] = (acc[classification] || 0) + parseFloat(transaction.amount);
                         return acc;
                     }, {});
 
-                setExpensesByCategory(groupedExpenses);
+                setExpensesByClassification(groupedExpenses);
             } catch (error) {
                 console.error('Error fetching transactions:', error);
             }
@@ -79,22 +80,29 @@ const BudgetManager = () => {
 
     const remainingBudget = totalIncome - totalExpenses;
 
-    // Prepare data for the pie chart
+    // Updated chart data preparation
     const chartData = [
-        ['Category', 'Amount'],
-        ...Object.entries(expensesByCategory),
-        ['Unspent Budget', Math.max(remainingBudget, 0)],
+        ['Classification', 'Amount'],
+        ...Object.entries(expensesByClassification),
+        ['Remaining Budget', Math.max(remainingBudget, 0)],
     ];
 
     const chartOptions = {
-        title: '',
+        title: 'Spending by Classification',
         pieHole: 0.4,
         is3D: false,
-        legend: 'none',
-        chartArea: {
-            width: '90%',
-            height: '80%',
-        },
+        legend: { position: 'right' },
+        chartArea: { width: '70%', height: '80%' },
+        colors: [
+            '#FF9800', // Priorities (Orange)
+            '#4CAF50', // Savings (Green)
+            '#F44336', // Non Essentials (Red)
+            '#2196F3', // Rewards (Blue)
+            '#9E9E9E', // Remaining Budget (Grey)
+        ],
+        slices: {
+            4: { color: '#E0E0E0' } // Make the Remaining Budget slice lighter
+        }
     };
 
     return (

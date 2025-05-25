@@ -96,18 +96,31 @@ const BudgetDetails = ({ onUpdateTransactions, transactions }) => {
     });
 
     const groupedByType = filteredTransactions.reduce((acc, transaction) => {
-        const { type, category, amount } = transaction;
+        const { type, category, classification, amount } = transaction;
         if (!acc[type]) acc[type] = {};
-        if (!acc[type][category]) acc[type][category] = [];
-        acc[type][category].push({
-            ...transaction,
-            amount: parseFloat(amount) || 0, // Ensure amount is a valid number
-        });
+        if (type === 'expense') {
+            const classif = classification || 'Unclassified';
+            if (!acc[type][classif]) acc[type][classif] = {};
+            if (!acc[type][classif][category]) acc[type][classif][category] = [];
+            acc[type][classif][category].push({
+                ...transaction,
+                amount: parseFloat(amount) || 0,
+            });
+        } else {
+            // Keep income grouping as is
+            if (!acc[type][category]) acc[type][category] = [];
+            acc[type][category].push({
+                ...transaction,
+                amount: parseFloat(amount) || 0,
+            });
+        }
         return acc;
     }, {});
 
     const totalIncome = Object.values(groupedByType.income || {}).flat().reduce((sum, t) => sum + t.amount, 0);
-    const totalExpenses = Object.values(groupedByType.expense || {}).flat().reduce((sum, t) => sum + t.amount, 0);
+    const totalExpenses = Object.values(groupedByType.expense || {}).reduce((sum, classification) => {
+        return sum + Object.values(classification).flat().reduce((catSum, t) => catSum + t.amount, 0);
+    }, 0);
     const remainingBudget = totalIncome - totalExpenses;
 
     const handleInputChange = (index, field, value) => {
@@ -208,11 +221,11 @@ const BudgetDetails = ({ onUpdateTransactions, transactions }) => {
             <h2 style={{ textAlign: 'center', marginBottom: '20px' }}>Budget Details</h2>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
                 <button onClick={handlePrevious}>
-                    &lt; Previous
+                    &lt; Previous Month
                 </button>
-                <h3>{`${months[currentMonthIndex]} ${currentYear}`}</h3> {/* Display month and year */}
+                <h3>{`${months[currentMonthIndex]} ${currentYear}`}</h3>
                 <button onClick={handleNext}>
-                    Next &gt;
+                    Next Month &gt;
                 </button>
             </div>
             <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px' }}>
@@ -229,139 +242,303 @@ const BudgetDetails = ({ onUpdateTransactions, transactions }) => {
                 <tbody>
                     {['income', 'expense'].map((type) => (
                         <React.Fragment key={type}>
-                            <tr>
-                                <td
-                                    colSpan={isEditing ? 4 : 3}
-                                    style={{
-                                        backgroundColor: type === 'income' ? '#d8f3dc' : '#f8d7da',
-                                        fontWeight: 'bold',
-                                        padding: '8px',
-                                        border: '2px solid #000',
-                                        borderBottom: 'none',
-                                    }}
-                                >
-                                    {type === 'income' ? 'Income' : 'Expenses'}
-                                </td>
-                            </tr>
-                            <tr>
-                                <td
-                                    colSpan={isEditing ? 4 : 3}
-                                    style={{
-                                        border: '2px solid #000',
-                                        borderTop: 'none',
-                                        padding: '0',
-                                    }}
-                                >
-                                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                        {groupedByType[type] &&
-                                            Object.keys(groupedByType[type]).map((category) => (
-                                                <React.Fragment key={category}>
-                                                    <tr>
-                                                        <td
-                                                            colSpan={isEditing ? 3 : 2}
-                                                            style={{
-                                                                backgroundColor: '#f1f1f1',
-                                                                fontWeight: 'bold',
-                                                                padding: '8px',
-                                                            }}
-                                                        >
-                                                            {category}
-                                                        </td>
-                                                        <td
-                                                            style={{
-                                                                backgroundColor: '#f1f1f1',
-                                                                fontWeight: 'bold',
-                                                                padding: '8px',
-                                                                textAlign: 'right',
-                                                            }}
-                                                        >
-                                                            {formatNumber(
-                                                                groupedByType[type][category].reduce(
-                                                                    (sum, t) => sum + t.amount,
-                                                                    0
-                                                                )
-                                                            )}
-                                                        </td>
-                                                    </tr>
-                                                    {groupedByType[type][category].map((transaction, index) => (
-                                                        <tr key={index}>
-                                                            <td style={{ padding: '4px', textAlign: 'center' }}>
-                                                                {isEditing ? (
-                                                                    <input
-                                                                        type="date" // Make date the first editable field
-                                                                        value={transaction.date}
-                                                                        onChange={(e) =>
-                                                                            handleInputChange(
-                                                                                editableTransactions.indexOf(transaction),
-                                                                                'date',
-                                                                                e.target.value
-                                                                            )
-                                                                        }
-                                                                    />
-                                                                ) : (
-                                                                    formatDate(transaction.date)
-                                                                )}
-                                                            </td>
-                                                            <td style={{ padding: '4px' }}>
-                                                                {isEditing ? (
-                                                                    <input
-                                                                        type="text"
-                                                                        value={transaction.description}
-                                                                        onChange={(e) =>
-                                                                            handleInputChange(
-                                                                                editableTransactions.indexOf(transaction),
-                                                                                'description',
-                                                                                e.target.value
-                                                                            )
-                                                                        }
-                                                                    />
-                                                                ) : (
-                                                                    transaction.description
-                                                                )}
-                                                            </td>
-                                                            <td style={{ padding: '4px', textAlign: 'right' }}>
-                                                                {isEditing ? (
-                                                                    <input
-                                                                        type="number"
-                                                                        value={transaction.amount}
-                                                                        onChange={(e) =>
-                                                                            handleInputChange(
-                                                                                editableTransactions.indexOf(transaction),
-                                                                                'amount',
-                                                                                e.target.value
-                                                                            )
-                                                                        }
-                                                                    />
-                                                                ) : (
-                                                                    formatNumber(transaction.amount)
-                                                                )}
-                                                            </td>
-                                                            {isEditing && (
-                                                                <td style={{ textAlign: 'center', padding: '4px' }}>
-                                                                    <button
-                                                                        onClick={() => handleDeleteTransaction(transaction)}
-                                                                        style={{
-                                                                            backgroundColor: 'red',
-                                                                            color: 'white',
-                                                                            border: 'none',
+                            {type === 'expense' ? (
+                                <tr>
+                                    <td colSpan={isEditing ? 4 : 3} style={{ padding: '0' }}>
+                                        <div style={{ 
+                                            backgroundColor: '#f5f5f5', // Changed from #f8d7da to light grey
+                                            border: '2px solid #000',
+                                            borderRadius: '4px',
+                                            margin: '10px 0'
+                                        }}>
+                                            {/* Expenses Header */}
+                                            <div style={{ 
+                                                padding: '12px 16px',
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center',
+                                                borderBottom: '1px solid #dee2e6'
+                                            }}>
+                                                <h3 style={{ margin: 0 }}>Expenses</h3>
+                                                <span style={{ fontWeight: 'bold' }}>{formatNumber(totalExpenses)}</span>
+                                            </div>
+
+                                            {/* Classifications Container */}
+                                            <div style={{ padding: '16px' }}>
+                                                {Object.entries(groupedByType[type] || {}).map(([classification, categories], index) => {
+                                                    // Different background colors for each classification
+                                                    const colors = {
+                                                        'Priorities': '#e3f2fd', // Light blue
+                                                        'Savings': '#e8f5e9',    // Light green
+                                                        'Non Essentials': '#fce4ec', // Light pink
+                                                        'Rewards': '#fff3e0',    // Light orange
+                                                        'Unclassified': '#f5f5f5' // Light grey
+                                                    };
+                                                    
+                                                    return (
+                                                        <div key={classification} style={{ 
+                                                            backgroundColor: colors[classification] || '#f5f5f5',
+                                                            borderRadius: '4px',
+                                                            marginBottom: '16px',
+                                                            boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                                                        }}>
+                                                            <div style={{ 
+                                                                padding: '8px 16px',
+                                                                borderBottom: '1px solid #dee2e6',
+                                                                display: 'flex',
+                                                                justifyContent: 'space-between',
+                                                                alignItems: 'center'
+                                                            }}>
+                                                                <h4 style={{ margin: 0 }}>{classification}</h4>
+                                                                <span>{formatNumber(
+                                                                    Object.values(categories).flat().reduce((sum, t) => sum + t.amount, 0)
+                                                                )}</span>
+                                                            </div>
+                                                            <div style={{ padding: '8px' }}>
+                                                                {Object.entries(categories).map(([category, transactions]) => (
+                                                                    <div key={category} style={{ marginBottom: '8px' }}>
+                                                                        <div style={{ 
+                                                                            padding: '8px',
+                                                                            backgroundColor: '#e9ecef',
                                                                             borderRadius: '4px',
-                                                                            cursor: 'pointer',
-                                                                        }}
-                                                                    >
-                                                                        X
-                                                                    </button>
-                                                                </td>
-                                                            )}
-                                                        </tr>
-                                                    ))}
-                                                </React.Fragment>
-                                            ))}
-                                    </table>
-                                </td>
-                            </tr>
-                            {type === 'income' && <tr style={{ height: '20px' }}></tr>} {/* Spacer between groups */}
+                                                                            marginBottom: '4px',
+                                                                            display: 'flex',
+                                                                            justifyContent: 'space-between'
+                                                                        }}>
+                                                                            <strong>{category}</strong>
+                                                                            <span style={{ marginRight: '5%' }}>{formatNumber(
+                                                                                transactions.reduce((sum, t) => sum + t.amount, 0)
+                                                                            )}</span>
+                                                                        </div>
+                                                                        {transactions.map((transaction, index) => (
+                                                                            <div key={index} style={{ 
+                                                                                display: 'flex', 
+                                                                                justifyContent: 'space-between', 
+                                                                                padding: '4px 0' 
+                                                                            }}>
+                                                                                <div style={{ flex: 1, paddingRight: '8px' }}>
+                                                                                    {isEditing ? (
+                                                                                        <input
+                                                                                            type="date" // Make date the first editable field
+                                                                                            value={transaction.date}
+                                                                                            onChange={(e) =>
+                                                                                                handleInputChange(
+                                                                                                    editableTransactions.indexOf(transaction),
+                                                                                                    'date',
+                                                                                                    e.target.value
+                                                                                                )
+                                                                                            }
+                                                                                            style={{ width: '100%' }}
+                                                                                        />
+                                                                                    ) : (
+                                                                                        formatDate(transaction.date)
+                                                                                    )}
+                                                                                </div>
+                                                                                <div style={{ flex: 2, paddingRight: '8px' }}>
+                                                                                    {isEditing ? (
+                                                                                        <input
+                                                                                            type="text"
+                                                                                            value={transaction.description}
+                                                                                            onChange={(e) =>
+                                                                                                handleInputChange(
+                                                                                                    editableTransactions.indexOf(transaction),
+                                                                                                    'description',
+                                                                                                    e.target.value
+                                                                                                )
+                                                                                            }
+                                                                                            style={{ width: '100%' }}
+                                                                                        />
+                                                                                    ) : (
+                                                                                        transaction.description
+                                                                                    )}
+                                                                                </div>
+                                                                                <div style={{ 
+                                                                                    flex: 1, 
+                                                                                    paddingRight: '15%',
+                                                                                    textAlign: 'right' 
+                                                                                }}>
+                                                                                    {isEditing ? (
+                                                                                        <input
+                                                                                            type="number"
+                                                                                            value={transaction.amount}
+                                                                                            onChange={(e) =>
+                                                                                                handleInputChange(
+                                                                                                    editableTransactions.indexOf(transaction),
+                                                                                                    'amount',
+                                                                                                    e.target.value
+                                                                                                )
+                                                                                            }
+                                                                                            style={{ width: '100%' }}
+                                                                                        />
+                                                                                    ) : (
+                                                                                        formatNumber(transaction.amount)
+                                                                                    )}
+                                                                                </div>
+                                                                                {isEditing && (
+                                                                                    <div style={{ textAlign: 'center' }}>
+                                                                                        <button
+                                                                                            onClick={() => handleDeleteTransaction(transaction)}
+                                                                                            style={{
+                                                                                                backgroundColor: 'red',
+                                                                                                color: 'white',
+                                                                                                border: 'none',
+                                                                                                borderRadius: '4px',
+                                                                                                cursor: 'pointer',
+                                                                                            }}
+                                                                                        >
+                                                                                            X
+                                                                                        </button>
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ) : (
+                                <tr>
+                                    <td colSpan={isEditing ? 4 : 3} style={{ padding: '0' }}>
+                                        <div style={{ 
+                                            backgroundColor: '#f5f5f5',
+                                            border: '2px solid #000',
+                                            borderRadius: '4px',
+                                            margin: '10px 0'
+                                        }}>
+                                            {/* Income Header */}
+                                            <div style={{ 
+                                                padding: '12px 16px',
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center',
+                                                borderBottom: '1px solid #dee2e6',
+                                                backgroundColor: '#d8f3dc'
+                                            }}>
+                                                <h3 style={{ margin: 0 }}>Income</h3>
+                                                <span style={{ fontWeight: 'bold' }}>{formatNumber(totalIncome)}</span>
+                                            </div>
+
+                                            {/* Income Categories Container */}
+                                            <div style={{ padding: '16px' }}>
+                                                {Object.entries(groupedByType[type] || {}).map(([category, transactions]) => (
+                                                    <div key={category} style={{ 
+                                                        backgroundColor: '#e8f5e9',
+                                                        borderRadius: '4px',
+                                                        marginBottom: '16px',
+                                                        boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                                                    }}>
+                                                        <div style={{ 
+                                                            padding: '8px 16px',
+                                                            borderBottom: '1px solid #dee2e6',
+                                                            display: 'flex',
+                                                            justifyContent: 'space-between',
+                                                            alignItems: 'center'
+                                                        }}>
+                                                            <strong>{category}</strong>
+                                                            <span style={{ marginRight: '5%' }}>{formatNumber(
+                                                                transactions.reduce((sum, t) => sum + t.amount, 0)
+                                                            )}</span>
+                                                        </div>
+                                                        <div style={{ padding: '8px' }}>
+                                                            {transactions.map((transaction, index) => (
+                                                                <div key={index} style={{ 
+                                                                    display: 'flex', 
+                                                                    justifyContent: 'space-between', 
+                                                                    padding: '4px 0'
+                                                                }}>
+                                                                    <div style={{ flex: 1, paddingRight: '8px' }}>
+                                                                        {isEditing ? (
+                                                                            <input
+                                                                                type="date"
+                                                                                value={transaction.date}
+                                                                                onChange={(e) =>
+                                                                                    handleInputChange(
+                                                                                        editableTransactions.indexOf(transaction),
+                                                                                        'date',
+                                                                                        e.target.value
+                                                                                    )
+                                                                                }
+                                                                                style={{ width: '100%' }}
+                                                                            />
+                                                                        ) : (
+                                                                            formatDate(transaction.date)
+                                                                        )}
+                                                                    </div>
+                                                                    <div style={{ flex: 2, paddingRight: '8px' }}>
+                                                                        {isEditing ? (
+                                                                            <input
+                                                                                type="text"
+                                                                                value={transaction.description}
+                                                                                onChange={(e) =>
+                                                                                    handleInputChange(
+                                                                                        editableTransactions.indexOf(transaction),
+                                                                                        'description',
+                                                                                        e.target.value
+                                                                                    )
+                                                                                }
+                                                                                style={{ width: '100%' }}
+                                                                            />
+                                                                        ) : (
+                                                                            transaction.description
+                                                                        )}
+                                                                    </div>
+                                                                    <div style={{ 
+                                                                        flex: 1, 
+                                                                        paddingRight: '15%',
+                                                                        textAlign: 'right' 
+                                                                    }}>
+                                                                        {isEditing ? (
+                                                                            <input
+                                                                                type="number"
+                                                                                value={transaction.amount}
+                                                                                onChange={(e) =>
+                                                                                    handleInputChange(
+                                                                                        editableTransactions.indexOf(transaction),
+                                                                                        'amount',
+                                                                                        e.target.value
+                                                                                    )
+                                                                                }
+                                                                                style={{ width: '100%' }}
+                                                                            />
+                                                                        ) : (
+                                                                            formatNumber(transaction.amount)
+                                                                        )}
+                                                                    </div>
+                                                                    {isEditing && (
+                                                                        <div style={{ textAlign: 'center' }}>
+                                                                            <button
+                                                                                onClick={() => handleDeleteTransaction(transaction)}
+                                                                                style={{
+                                                                                    backgroundColor: 'red',
+                                                                                    color: 'white',
+                                                                                    border: 'none',
+                                                                                    borderRadius: '4px',
+                                                                                    cursor: 'pointer',
+                                                                                }}
+                                                                            >
+                                                                                X
+                                                                            </button>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            )}
+                            {type === 'income' && <tr style={{ height: '20px' }}></tr>}
                         </React.Fragment>
-                                                    ))}
+                    ))}
                 </tbody>
                 <tfoot>
                     <tr style={{ height: '20px' }}></tr> {/* Spacer between expenses and summary lines */}
