@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../database/config');
+const transactionsController = require('../controllers/transactionsController'); // Updated path
 
 // Fetch all transactions
 router.get('/', async (req, res) => {
@@ -97,6 +98,46 @@ router.get('/monthly-income/:year/:month', async (req, res) => {
     } catch (err) {
         console.error('Error in monthly-income route:', err);
         res.status(500).json({ error: err.message });
+    } finally {
+        client.release();
+    }
+});
+
+// Add the batch update route handler
+router.put('/batch', async (req, res) => {
+    const { updated, deleted } = req.body;
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        // Handle updates
+        for (const transaction of updated) {
+            const { id, date, description, amount, type, category, classification } = transaction;
+            if (id) {
+                await client.query(
+                    `UPDATE transactions 
+                     SET date = $1, description = $2, amount = $3, type = $4, category = $5, classification = $6
+                     WHERE id = $7`,
+                    [date, description, amount, type, category, classification || null, id]
+                );
+            }
+        }
+
+        // Handle deletions
+        if (deleted && deleted.length > 0) {
+            const deletedIds = deleted.map(t => t.id).filter(Boolean);
+            if (deletedIds.length > 0) {
+                await client.query('DELETE FROM transactions WHERE id = ANY($1)', [deletedIds]);
+            }
+        }
+
+        await client.query('COMMIT');
+        res.json({ message: 'Batch update successful' });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('Error in batch update:', err);
+        res.status(500).json({ error: 'Failed to update transactions' });
     } finally {
         client.release();
     }

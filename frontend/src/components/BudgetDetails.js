@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
 const BudgetDetails = ({ onUpdateTransactions, transactions }) => {
+    // Add new state for tracking deleted transactions
+    const [deletedTransactions, setDeletedTransactions] = useState([]);
     const [isEditing, setIsEditing] = useState(false);
     const [editableTransactions, setEditableTransactions] = useState([]);
     const [currentMonthIndex, setCurrentMonthIndex] = useState(new Date().getMonth()); // Focus on current month
@@ -104,14 +106,13 @@ const BudgetDetails = ({ onUpdateTransactions, transactions }) => {
             if (!acc[type][classif][category]) acc[type][classif][category] = [];
             acc[type][classif][category].push({
                 ...transaction,
-                amount: parseFloat(amount) || 0,
+                amount: Number(amount) || 0,
             });
         } else {
-            // Keep income grouping as is
             if (!acc[type][category]) acc[type][category] = [];
             acc[type][category].push({
                 ...transaction,
-                amount: parseFloat(amount) || 0,
+                amount: Number(amount) || 0,
             });
         }
         return acc;
@@ -124,41 +125,39 @@ const BudgetDetails = ({ onUpdateTransactions, transactions }) => {
     const remainingBudget = totalIncome - totalExpenses;
 
     const handleInputChange = (index, field, value) => {
-        // Ensure the index exists in the array
-        if (index < 0 || index >= editableTransactions.length) {
-            console.error(`Invalid index: ${index}`);
-            return;
-        }
-
-        const updatedTransactions = [...editableTransactions];
-        const transaction = updatedTransactions[index];
-
-        // Ensure the transaction exists before updating
-        if (!transaction) {
-            console.error(`Transaction not found at index: ${index}`);
-            return;
-        }
-
-        // Update the specified field
-        transaction[field] = field === 'amount' ? parseFloat(value) || 0 : value;
-
+        const updatedTransactions = editableTransactions.map(transaction => {
+            if (transaction.id === index) {
+                return {
+                    ...transaction,
+                    // Store as number internally but allow empty string in input
+                    [field]: field === 'amount' ? (value === '' ? 0 : Number(value)) : value
+                };
+            }
+            return transaction;
+        });
         setEditableTransactions(updatedTransactions);
     };
 
     const handleDeleteTransaction = (transactionToDelete) => {
+        // Mark transaction for deletion
+        setDeletedTransactions(prev => [...prev, transactionToDelete]);
+        // Remove from current view
         const updatedTransactions = editableTransactions.filter(
-            (transaction) => transaction !== transactionToDelete
+            transaction => transaction.id !== transactionToDelete.id
         );
         setEditableTransactions(updatedTransactions);
     };
 
     const handleSave = async () => {
         try {
-            // Send updated transactions to the backend
-            const response = await fetch('/api/transactions', {
+            // All transactions already have numbers for amounts, no need to format
+            const response = await fetch('/api/transactions/batch', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(editableTransactions), // Send all updated transactions
+                body: JSON.stringify({
+                    updated: editableTransactions,
+                    deleted: deletedTransactions
+                }),
             });
 
             if (!response.ok) {
@@ -172,9 +171,10 @@ const BudgetDetails = ({ onUpdateTransactions, transactions }) => {
             }
 
             const updatedTransactions = await updatedResponse.json();
-            setEditableTransactions(updatedTransactions); // Update the state with the saved transactions
-            onUpdateTransactions(updatedTransactions); // Notify parent component of the changes
-            setIsEditing(false); // Exit edit mode
+            setEditableTransactions(updatedTransactions);
+            setDeletedTransactions([]); // Clear deleted transactions after successful save
+            onUpdateTransactions(updatedTransactions);
+            setIsEditing(false);
         } catch (error) {
             console.error('Error saving transactions:', error);
             setError('Failed to save changes. Please try again.');
@@ -182,7 +182,7 @@ const BudgetDetails = ({ onUpdateTransactions, transactions }) => {
     };
 
     const handleCancel = () => {
-        // Restore original transactions for the current month and year
+        // Restore original transactions and clear deleted transactions
         const filteredTransactions = transactions.filter((transaction) => {
             const transactionDate = new Date(transaction.date);
             return (
@@ -190,8 +190,9 @@ const BudgetDetails = ({ onUpdateTransactions, transactions }) => {
                 transactionDate.getFullYear() === currentYear
             );
         });
-        setEditableTransactions(filteredTransactions); // Restore filtered transactions
-        setIsEditing(false); // Exit edit mode
+        setEditableTransactions(filteredTransactions);
+        setDeletedTransactions([]); // Clear deleted transactions on cancel
+        setIsEditing(false);
     };
 
     const formatDate = (dateString) => {
@@ -199,10 +200,17 @@ const BudgetDetails = ({ onUpdateTransactions, transactions }) => {
         return new Date(dateString).toLocaleDateString('en-GB', options).replace(/ /g, '-');
     };
 
+    // Add this helper function to format dates for input fields
+    const formatDateForInput = (dateString) => {
+        const date = new Date(dateString);
+        return date.toISOString().split('T')[0]; // Returns YYYY-MM-DD format
+    };
+
+    // Update formatNumber to handle display
     const formatNumber = (number) => {
-        // Ensure the number is valid and format it with comma separators
-        if (isNaN(number)) return '0.00';
-        return Number(number).toLocaleString('en-US', {
+        // Only format non-zero numbers for display
+        if (number === 0) return '';
+        return number.toLocaleString('en-US', {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
         });
@@ -320,10 +328,10 @@ const BudgetDetails = ({ onUpdateTransactions, transactions }) => {
                                                                                     {isEditing ? (
                                                                                         <input
                                                                                             type="date" // Make date the first editable field
-                                                                                            value={transaction.date}
+                                                                                            value={formatDateForInput(transaction.date)}
                                                                                             onChange={(e) =>
                                                                                                 handleInputChange(
-                                                                                                    editableTransactions.indexOf(transaction),
+                                                                                                    transaction.id,
                                                                                                     'date',
                                                                                                     e.target.value
                                                                                                 )
@@ -341,7 +349,7 @@ const BudgetDetails = ({ onUpdateTransactions, transactions }) => {
                                                                                             value={transaction.description}
                                                                                             onChange={(e) =>
                                                                                                 handleInputChange(
-                                                                                                    editableTransactions.indexOf(transaction),
+                                                                                                    transaction.id,
                                                                                                     'description',
                                                                                                     e.target.value
                                                                                                 )
@@ -360,10 +368,11 @@ const BudgetDetails = ({ onUpdateTransactions, transactions }) => {
                                                                                     {isEditing ? (
                                                                                         <input
                                                                                             type="number"
-                                                                                            value={transaction.amount}
+                                                                                            // Show empty string when amount is 0
+                                                                                            value={transaction.amount === 0 ? '' : transaction.amount}
                                                                                             onChange={(e) =>
                                                                                                 handleInputChange(
-                                                                                                    editableTransactions.indexOf(transaction),
+                                                                                                    transaction.id,
                                                                                                     'amount',
                                                                                                     e.target.value
                                                                                                 )
@@ -456,10 +465,10 @@ const BudgetDetails = ({ onUpdateTransactions, transactions }) => {
                                                                         {isEditing ? (
                                                                             <input
                                                                                 type="date"
-                                                                                value={transaction.date}
+                                                                                value={formatDateForInput(transaction.date)}
                                                                                 onChange={(e) =>
                                                                                     handleInputChange(
-                                                                                        editableTransactions.indexOf(transaction),
+                                                                                        transaction.id,
                                                                                         'date',
                                                                                         e.target.value
                                                                                     )
@@ -477,7 +486,7 @@ const BudgetDetails = ({ onUpdateTransactions, transactions }) => {
                                                                                 value={transaction.description}
                                                                                 onChange={(e) =>
                                                                                     handleInputChange(
-                                                                                        editableTransactions.indexOf(transaction),
+                                                                                        transaction.id,
                                                                                         'description',
                                                                                         e.target.value
                                                                                     )
@@ -496,10 +505,11 @@ const BudgetDetails = ({ onUpdateTransactions, transactions }) => {
                                                                         {isEditing ? (
                                                                             <input
                                                                                 type="number"
-                                                                                value={transaction.amount}
+                                                                                // Show empty string when amount is 0
+                                                                                value={transaction.amount === 0 ? '' : transaction.amount}
                                                                                 onChange={(e) =>
                                                                                     handleInputChange(
-                                                                                        editableTransactions.indexOf(transaction),
+                                                                                        transaction.id,
                                                                                         'amount',
                                                                                         e.target.value
                                                                                     )
@@ -540,12 +550,16 @@ const BudgetDetails = ({ onUpdateTransactions, transactions }) => {
                         </React.Fragment>
                     ))}
                 </tbody>
-                <tfoot>
-                    <tr style={{ height: '20px' }}></tr> {/* Spacer between expenses and summary lines */}
+                <tfoot style={{ marginTop: '20px' }}>{/* Add margin to tfoot instead of using spacer tr */}
                     <tr>
                         <td
-                            colSpan={isEditing ? 3 : 2} // Adjust column span dynamically
-                            style={{ fontWeight: 'bold', padding: '8px', border: '2px solid #000' }}
+                            colSpan={isEditing ? 3 : 2}
+                            style={{ 
+                                fontWeight: 'bold', 
+                                padding: '8px', 
+                                border: '2px solid #000',
+                                paddingTop: '20px' // Add padding to first row instead of using spacer
+                            }}
                         >
                             Total Income
                         </td>
@@ -554,7 +568,8 @@ const BudgetDetails = ({ onUpdateTransactions, transactions }) => {
                                 textAlign: 'right',
                                 fontWeight: 'bold',
                                 padding: '8px',
-                                border: '2px solid #000', // Ensure right border is applied
+                                paddingTop: '20px', // Add padding to first row instead of using spacer
+                                border: '2px solid #000'
                             }}
                         >
                             {formatNumber(totalIncome)}

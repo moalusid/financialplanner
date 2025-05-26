@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const app = express();
 
+const transactionsRoutes = require('./routes/transactionsRoutes');
+
 // CORS Configuration
 app.use(cors({
     origin: process.env.NODE_ENV === 'production' 
@@ -24,6 +26,9 @@ app.use((err, req, res, next) => {
     });
 });
 
-// ...existing code...
+// Ensure the transactions routes are properly mounted
 
-module.exports = app;
+
+
+
+module.exports = app;app.use('/api/transactions', transactionsRoutes);module.exports = app;
