@@ -16,21 +16,30 @@ router.get('/', async (req, res) => {
 
 // Add a new transaction
 router.post('/', async (req, res) => {
-    const { type, category, description, amount, date } = req.body;
-
-    if (!type || !category || !amount || !date) {
-        return res.status(400).json({ error: 'Missing required fields' });
-    }
+    console.log('Request body:', req.body);
+    const { type, category, description, amount, date, classification } = req.body;
 
     try {
-        const result = await pool.query(
-            'INSERT INTO transactions (type, category, description, amount, date) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-            [type, category, description, amount, date]
-        );
+        const queryText = `
+            INSERT INTO transactions 
+            (type, category, description, amount, date, classification) 
+            VALUES ($1, $2, $3, $4, $5, $6) 
+            RETURNING *
+        `;
+        const values = [type, category, description, amount, date, classification];
+        console.log('Query values:', values);
+        
+        const result = await pool.query(queryText, values);
+        console.log('Inserted row:', result.rows[0]);
+        
         res.status(201).json(result.rows[0]);
     } catch (error) {
-        console.error('Error saving transaction:', error);
-        res.status(500).json({ error: 'Failed to save transaction' });
+        console.error('Database error:', error);
+        res.status(500).json({ 
+            error: 'Failed to save transaction', 
+            details: error.message,
+            body: req.body 
+        });
     }
 });
 

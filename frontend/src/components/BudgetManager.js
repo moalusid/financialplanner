@@ -83,10 +83,9 @@ const BudgetManager = () => {
     // Updated chart data preparation
     const chartData = [
         ['Classification', 'Amount'],
-        ['Priorities', expensesByClassification['Priorities'] || 0],
+        ['Essentials', expensesByClassification['Essentials'] || 0],
         ['Savings', expensesByClassification['Savings'] || 0],
         ['Non Essentials', expensesByClassification['Non Essentials'] || 0],
-        ['Rewards', expensesByClassification['Rewards'] || 0],
         ['Remaining Budget', Math.max(remainingBudget, 0)]
     ];
 
@@ -97,10 +96,9 @@ const BudgetManager = () => {
         legend: { position: 'right' },
         chartArea: { width: '70%', height: '80%' },
         colors: [
-            '#FF9800', // Priorities (Orange)
+            '#FF9800', // Essentials (Orange)
             '#4CAF50', // Savings (Green)
             '#F44336', // Non Essentials (Red)
-            '#2196F3', // Rewards (Blue)
             '#E0E0E0', // Remaining Budget (Grey)
         ]
     };

@@ -216,6 +216,13 @@ const BudgetDetails = ({ onUpdateTransactions, transactions }) => {
         });
     };
 
+    const sortClassifications = (classifications) => {
+        const order = ['Essentials', 'Savings', 'Non Essentials', 'Unclassified'];
+        return Object.entries(classifications).sort((a, b) => {
+            return order.indexOf(a[0]) - order.indexOf(b[0]);
+        });
+    };
+
     if (loading) {
         return <div>Loading...</div>; // Display loading message
     }
@@ -273,13 +280,15 @@ const BudgetDetails = ({ onUpdateTransactions, transactions }) => {
 
                                             {/* Classifications Container */}
                                             <div style={{ padding: '16px' }}>
-                                                {Object.entries(groupedByType[type] || {}).map(([classification, categories], index) => {
+                                                {Object.entries(groupedByType[type] || {}).sort((a, b) => {
+                                                    const order = ['Essentials', 'Savings', 'Non Essentials', 'Unclassified'];
+                                                    return order.indexOf(a[0]) - order.indexOf(b[0]);
+                                                }).map(([classification, categories], index) => {
                                                     // Different background colors for each classification
                                                     const colors = {
-                                                        'Priorities': '#e3f2fd', // Light blue
+                                                        'Essentials': '#e3f2fd', // Light blue
                                                         'Savings': '#e8f5e9',    // Light green
                                                         'Non Essentials': '#fce4ec', // Light pink
-                                                        'Rewards': '#fff3e0',    // Light orange
                                                         'Unclassified': '#f5f5f5' // Light grey
                                                     };
                                                     
