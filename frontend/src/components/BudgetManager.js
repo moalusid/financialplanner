@@ -83,8 +83,11 @@ const BudgetManager = () => {
     // Updated chart data preparation
     const chartData = [
         ['Classification', 'Amount'],
-        ...Object.entries(expensesByClassification),
-        ['Remaining Budget', Math.max(remainingBudget, 0)],
+        ['Priorities', expensesByClassification['Priorities'] || 0],
+        ['Savings', expensesByClassification['Savings'] || 0],
+        ['Non Essentials', expensesByClassification['Non Essentials'] || 0],
+        ['Rewards', expensesByClassification['Rewards'] || 0],
+        ['Remaining Budget', Math.max(remainingBudget, 0)]
     ];
 
     const chartOptions = {
@@ -98,11 +101,8 @@ const BudgetManager = () => {
             '#4CAF50', // Savings (Green)
             '#F44336', // Non Essentials (Red)
             '#2196F3', // Rewards (Blue)
-            '#9E9E9E', // Remaining Budget (Grey)
-        ],
-        slices: {
-            4: { color: '#E0E0E0' } // Make the Remaining Budget slice lighter
-        }
+            '#E0E0E0', // Remaining Budget (Grey)
+        ]
     };
 
     return (
@@ -110,11 +110,11 @@ const BudgetManager = () => {
             <h2 style={{ textAlign: 'center', marginBottom: '20px' }}>Budget Manager</h2>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
                 <button onClick={handlePrevious}>
-                    &lt; Previous
+                    &lt; Previous Month
                 </button>
-                <h3>{`${months[currentMonthIndex]} ${currentYear}`}</h3> {/* Display month and year */}
+                <h3>{`${months[currentMonthIndex]} ${currentYear}`}</h3>
                 <button onClick={handleNext}>
-                    Next &gt;
+                    Next Month &gt;
                 </button>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-around', marginBottom: '20px' }}>
