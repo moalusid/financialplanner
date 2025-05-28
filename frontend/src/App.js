@@ -15,6 +15,7 @@ import AddFixedDebt from './components/AddFixedDebt';
 import AddRevolvingDebt from './components/AddRevolvingDebt';
 import DebtDetails from './components/DebtDetails';
 import DebtInsights from './components/DebtInsights';
+import PlannedExpenses from './components/PlannedExpenses';
 
 function App() {
     const [transactions, setTransactions] = useState(() => {
@@ -87,6 +88,7 @@ function App() {
                 <Route path="/add-revolving-debt" element={<AddRevolvingDebt />} />
                 <Route path="/debt-details/:id" element={<DebtDetails />} />
                 <Route path="/debt-insights" element={<DebtInsights />} />
+                <Route path="/planned-expenses" element={<PlannedExpenses />} />
             </Routes>
         </Router>
     );

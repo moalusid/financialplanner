@@ -14,12 +14,15 @@ const BudgetManager = () => {
     const [totalIncome, setTotalIncome] = useState(0);
     const [totalExpenses, setTotalExpenses] = useState(0);
     const [expensesByClassification, setExpensesByClassification] = useState({}); // Changed from expensesByCategory
+    const [plannedExpenses, setPlannedExpenses] = useState([]);
+    const [upcomingExpenses, setUpcomingExpenses] = useState(0);
 
     useEffect(() => {
         const fetchBudgetData = async () => {
             try {
-                const response = await axios.get('http://localhost:5000/api/transactions');
-                const transactions = response.data;
+                // Fetch transactions
+                const transactionsResponse = await axios.get('http://localhost:5000/api/transactions');
+                const transactions = transactionsResponse.data;
 
                 const filteredTransactions = transactions.filter((transaction) => {
                     const transactionDate = new Date(transaction.date);
@@ -50,8 +53,25 @@ const BudgetManager = () => {
                     }, {});
 
                 setExpensesByClassification(groupedExpenses);
+
+                // Fetch planned expenses for current and next month
+                const plannedResponse = await axios.get('http://localhost:5000/api/planned-expenses');
+                const currentDate = new Date(currentYear, currentMonthIndex);
+                const nextDate = new Date(currentYear, currentMonthIndex + 1);
+                
+                const upcomingExpenses = plannedResponse.data.filter(expense => {
+                    const expenseDate = new Date(expense.due_date);
+                    return expense.status === 'pending' && 
+                           expenseDate >= currentDate && 
+                           expenseDate <= new Date(nextDate.getFullYear(), nextDate.getMonth() + 1, 0);
+                }).sort((a, b) => new Date(a.due_date) - new Date(b.due_date));
+
+                setPlannedExpenses(upcomingExpenses);
+                setUpcomingExpenses(upcomingExpenses.reduce((sum, expense) => 
+                    sum + parseFloat(expense.amount), 0
+                ));
             } catch (error) {
-                console.error('Error fetching transactions:', error);
+                console.error('Error fetching data:', error);
             }
         };
 
@@ -103,6 +123,22 @@ const BudgetManager = () => {
         ]
     };
 
+    // Add new function to get bar color based on classification
+    const getBarColor = (classification) => {
+        switch (classification) {
+            case 'Essentials': return '#FF9800';
+            case 'Non Essentials': return '#F44336';
+            case 'Savings': return '#4CAF50';
+            default: return '#757575';
+        }
+    };
+
+    // Add this function after getBarColor
+    const getBarWidth = (amount) => {
+        const maxAmount = Math.max(...plannedExpenses.map(e => parseFloat(e.amount)));
+        return `${(parseFloat(amount) / maxAmount) * 100}%`;
+    };
+
     return (
         <div style={{ fontFamily: 'Open Sans, sans-serif', textAlign: 'center' }}>
             <h2 style={{ textAlign: 'center', marginBottom: '20px' }}>Budget Manager</h2>
@@ -118,17 +154,24 @@ const BudgetManager = () => {
             <div style={{ display: 'flex', justifyContent: 'space-around', marginBottom: '20px' }}>
                 <div>
                     <h3>Total Income</h3>
-                    <p style={{ fontSize: '24px', color: '#006400' }}>P{totalIncome.toLocaleString()}</p>
+                    <p style={{ fontSize: '24px', color: '#006400' }}>P{totalIncome.toLocaleString('en-BW')}</p>
                 </div>
                 <div>
                     <h3>Total Expenses</h3>
-                    <p style={{ fontSize: '24px', color: '#8B0000' }}>P{totalExpenses.toLocaleString()}</p>
+                    <p style={{ fontSize: '24px', color: '#8B0000' }}>P{totalExpenses.toLocaleString('en-BW')}</p>
                 </div>
                 <div>
                     <h3>Remaining Budget</h3>
                     <p style={{ fontSize: '24px', color: remainingBudget >= 0 ? '#006400' : '#8B0000' }}>
-                        P{remainingBudget.toLocaleString()}
+                        P{remainingBudget.toLocaleString('en-BW')}
                     </p>
+                </div>
+                <div>
+                    <h3>Planned Expenses</h3>
+                    <p style={{ fontSize: '24px', color: '#FF9800' }}>
+                        P{upcomingExpenses.toLocaleString('en-BW')}
+                    </p>
+                    <small>({plannedExpenses.length} upcoming)</small>
                 </div>
             </div>
             <div
@@ -188,7 +231,7 @@ const BudgetManager = () => {
                         fontWeight: 'bold',
                     }}
                 >
-                    Spent: P{totalExpenses.toLocaleString()} ({((totalExpenses / totalIncome) * 100).toFixed(1)}%)
+                    Spent: P{totalExpenses.toLocaleString('en-BW')} ({((totalExpenses / totalIncome) * 100).toFixed(1)}%)
                 </div>
                 {remainingBudget >= 0 ? (
                     <div
@@ -201,7 +244,7 @@ const BudgetManager = () => {
                             fontWeight: 'bold',
                         }}
                     >
-                        Left: P{remainingBudget.toLocaleString()} ({((remainingBudget / totalIncome) * 100).toFixed(1)}%)
+                        Left: P{remainingBudget.toLocaleString('en-BW')} ({((remainingBudget / totalIncome) * 100).toFixed(1)}%)
                     </div>
                 ) : (
                     <div
@@ -215,7 +258,7 @@ const BudgetManager = () => {
                             fontSize: '16px', // Same size as "Spent" text
                         }}
                     >
-                        Overspent: P{(totalExpenses - totalIncome).toLocaleString()}
+                        Overspent: P{(totalExpenses - totalIncome).toLocaleString('en-BW')}
                     </div>
                 )}
             </div>
@@ -228,6 +271,76 @@ const BudgetManager = () => {
                     width="100%"
                     height="400px"
                 />
+            </div>
+            <div style={{ marginBottom: '20px', textAlign: 'center' }}>
+                <h3 style={{ fontSize: '24px', marginBottom: '15px' }}>Upcoming Planned Expenses</h3>
+                {plannedExpenses.length > 0 ? (
+                    <div style={{ 
+                        maxWidth: '800px', 
+                        margin: '0 auto',
+                        padding: '10px',
+                        backgroundColor: '#f8f9fa',
+                        borderRadius: '8px'
+                    }}>
+                        {plannedExpenses.map(expense => {
+                            const dueDate = new Date(expense.due_date);
+                            const isNextMonth = dueDate.getMonth() !== currentMonthIndex;
+                            const barWidth = getBarWidth(expense.amount);
+                            
+                            return (
+                                <div key={expense.id} style={{
+                                    position: 'relative',
+                                    height: '40px',
+                                    marginBottom: '10px',
+                                    backgroundColor: '#fff',
+                                    borderRadius: '4px',
+                                    border: '1px solid #ddd'
+                                }}>
+                                    <div style={{
+                                        position: 'absolute',
+                                        left: 0,
+                                        top: 0,
+                                        height: '100%',
+                                        width: barWidth,
+                                        backgroundColor: getBarColor(expense.classification),
+                                        opacity: isNextMonth ? 0.5 : 0.8,
+                                        borderRadius: '4px',
+                                        transition: 'width 0.3s ease-in-out'
+                                    }} />
+                                    <div style={{
+                                        position: 'absolute',
+                                        left: '10px',
+                                        right: '10px',
+                                        top: '50%',
+                                        transform: 'translateY(-50%)',
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        zIndex: 1,
+                                        padding: '0 5px'
+                                    }}>
+                                        <div style={{ 
+                                            display: 'flex', 
+                                            alignItems: 'center', 
+                                            gap: '10px',
+                                            color: '#000'
+                                        }}>
+                                            <span>{dueDate.toLocaleDateString('en-BW')}</span>
+                                            <span>{expense.description}</span>
+                                        </div>
+                                        <div style={{ 
+                                            color: '#000'
+                                        }}>
+                                            P{parseFloat(expense.amount).toLocaleString('en-BW')}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <p>No upcoming planned expenses</p>
+                )}
             </div>
             <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', flexWrap: 'wrap' }}>
                 <Link to="/">
@@ -244,6 +357,9 @@ const BudgetManager = () => {
                 </Link>
                 <Link to="/spending-targets">
                     <button>Set Spending Targets</button>
+                </Link>
+                <Link to="/planned-expenses">
+                    <button>Planned Expenses</button>
                 </Link>
             </div>
         </div>

@@ -9,6 +9,7 @@ const incomeRoutes = require('./routes/incomeroutes');
 const transactionsRoutes = require('./routes/transactionsRoutes');
 const debtsRoutes = require('./routes/debtsRoutes'); // Ensure this is imported
 const yearlyTargetRoutes = require('./routes/yearlyTargetRoutes');
+const plannedExpensesRoutes = require('./routes/plannedExpensesRoutes');
 
 const app = express();
 
@@ -19,6 +20,9 @@ app.use(express.json());
 // Add logging middleware
 app.use((req, res, next) => {
     console.log(`${req.method} ${req.url}`);
+    if (req.method === 'POST') {
+        console.log('Request body:', req.body);
+    }
     next();
 });
 
@@ -26,8 +30,9 @@ app.use((req, res, next) => {
 app.use('/api/calculator', calculatorRoutes);
 app.use('/api/income', incomeRoutes);
 app.use('/api/transactions', transactionsRoutes);
-app.use('/api/debts', debtsRoutes); // Ensure this is registered
+app.use('/api/debts', debtsRoutes);
 app.use('/api/yearlyTargets', yearlyTargetRoutes);
+app.use('/api/planned-expenses', plannedExpensesRoutes); // Change this line
 
 // Serve React app
 app.use(express.static(path.join(__dirname, '../frontend/build')));
