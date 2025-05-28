@@ -30,6 +30,8 @@ const SpendingTargets = () => {
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1); // 1-based month
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [targets, setTargets] = useState({});
+    const [includeExcess, setIncludeExcess] = useState(false);
+    const [previousExcess, setPreviousExcess] = useState(0);
 
     useEffect(() => {
         // Fetch targets for the selected month and year
@@ -53,6 +55,36 @@ const SpendingTargets = () => {
         };
 
         fetchTargets();
+    }, [selectedMonth, selectedYear]);
+
+    useEffect(() => {
+        const calculatePreviousExcess = async () => {
+            const prevYear = selectedMonth === 1 ? selectedYear - 1 : selectedYear;
+            const prevMonth = selectedMonth === 1 ? 12 : selectedMonth - 1;
+            
+            try {
+                const response = await fetch(`/api/yearlyTargets?year=${prevYear}&month=${prevMonth}`);
+                if (!response.ok) return;
+                
+                const data = await response.json();
+                const prevTargets = data[prevYear]?.[prevMonth] || {};
+                
+                const prevIncome = Object.entries(prevTargets)
+                    .filter(([category]) => categoryGroups.income.includes(category))
+                    .reduce((sum, [_, value]) => sum + (parseFloat(value) || 0), 0);
+                
+                const prevSpending = Object.entries(prevTargets)
+                    .filter(([category]) => !categoryGroups.income.includes(category))
+                    .reduce((sum, [_, value]) => sum + (parseFloat(value) || 0), 0);
+                
+                setPreviousExcess(prevIncome - prevSpending);
+            } catch (error) {
+                console.error('Error calculating previous excess:', error);
+                setPreviousExcess(0);
+            }
+        };
+
+        calculatePreviousExcess();
     }, [selectedMonth, selectedYear]);
 
     const handleMonthChange = (value) => {
@@ -189,7 +221,7 @@ const SpendingTargets = () => {
     };
 
     const calculateTotals = () => {
-        const income = Object.entries(targets)
+        const baseIncome = Object.entries(targets)
             .filter(([category]) => categoryGroups.income.includes(category))
             .reduce((sum, [_, value]) => sum + (parseFloat(value) || 0), 0);
 
@@ -205,9 +237,25 @@ const SpendingTargets = () => {
             .filter(([category]) => categoryGroups.nonEssentials.includes(category))
             .reduce((sum, [_, value]) => sum + (parseFloat(value) || 0), 0);
 
-        const remaining = income - essentials - savings - nonEssentials;
+        const totalIncome = includeExcess && previousExcess > 0 
+            ? baseIncome + previousExcess 
+            : baseIncome;
 
-        return { income, essentials, savings, nonEssentials, remaining };
+        const baseSpending = essentials + savings + nonEssentials;
+        const totalSpending = includeExcess && previousExcess < 0 
+            ? baseSpending - previousExcess 
+            : baseSpending;
+
+        const remaining = totalIncome - totalSpending;
+
+        return { 
+            income: totalIncome, 
+            spending: totalSpending,
+            essentials, 
+            savings, 
+            nonEssentials, 
+            remaining 
+        };
     };
 
     const renderCard = (title, categories, backgroundColor = '#fff') => {
@@ -278,6 +326,30 @@ const SpendingTargets = () => {
                 </select>
             </div>
 
+            {/* Previous Month Excess/Shortfall */}
+            <div style={{
+                backgroundColor: previousExcess >= 0 ? '#e8f5e9' : '#ffebee',
+                padding: '15px',
+                marginBottom: '20px',
+                borderRadius: '8px',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3 style={{ margin: 0 }}>Previous Month {previousExcess >= 0 ? 'Excess' : 'Shortfall'}</h3>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span>Include in calculations</span>
+                        <input
+                            type="checkbox"
+                            checked={includeExcess}
+                            onChange={(e) => setIncludeExcess(e.target.checked)}
+                        />
+                    </label>
+                </div>
+                <div style={{ marginTop: '10px', fontWeight: 'bold' }}>
+                    P{Math.abs(previousExcess).toLocaleString()}
+                </div>
+            </div>
+
             {/* Running Total Display */}
             <div style={{
                 position: 'sticky',
@@ -291,6 +363,7 @@ const SpendingTargets = () => {
             }}>
                 <h3>Monthly Overview</h3>
                 <div>Total Income: P{totals.income.toLocaleString()}</div>
+                <div>Total Spending: P{totals.spending.toLocaleString()}</div>
                 <div>Remaining: P{totals.remaining.toLocaleString()}</div>
             </div>
 
