@@ -108,31 +108,83 @@ const SpendingTargets = () => {
     };
 
     const handleCopyToNextMonth = async () => {
-        if (selectedMonth < months.length) {
-            try {
-                const response = await fetch('/api/yearlyTargets', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        year: selectedMonth === 12 ? selectedYear + 1 : selectedYear, // Increment year if copying to January
-                        month: selectedMonth === 12 ? 1 : selectedMonth + 1, // Set next month, wrap to January if December
-                        targets,
-                    }),
-                });
+        try {
+            const nextYear = selectedMonth === 12 ? selectedYear + 1 : selectedYear;
+            const nextMonth = selectedMonth === 12 ? 1 : selectedMonth + 1;
+            
+            // Filter out empty values and ensure numeric values
+            const validTargets = Object.fromEntries(
+                Object.entries(targets).filter(([_, value]) => value !== '')
+                    .map(([key, value]) => [key, parseFloat(value) || 0])
+            );
+            
+            const response = await fetch('/api/yearlyTargets', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    year: nextYear,
+                    month: nextMonth,
+                    targets: validTargets,
+                }),
+            });
 
-                if (!response.ok) {
-                    throw new Error('Failed to copy targets');
-                }
+            const responseData = await response.json();
+            console.log('Server response:', responseData);
 
-                alert(`Targets copied to ${months[selectedMonth % 12]}!`); // Use modulo to wrap around to January
-            } catch (error) {
-                console.error('Error copying targets:', error);
-                alert('Failed to copy spending targets.');
+            if (!response.ok) {
+                throw new Error(`Failed to copy targets: ${responseData.error || 'Unknown error'}`);
             }
-        } else {
-            alert('Cannot copy targets to the next month as this is the last month.');
+
+            alert(`Targets copied to ${months[nextMonth - 1]} ${nextYear}!`);
+        } catch (error) {
+            console.error('Error copying targets:', error.message);
+            alert(`Failed to copy spending targets: ${error.message}`);
+        }
+    };
+
+    const handleCopyFromPreviousMonth = async () => {
+        try {
+            const prevYear = selectedMonth === 1 ? selectedYear - 1 : selectedYear;
+            const prevMonth = selectedMonth === 1 ? 12 : selectedMonth - 1;
+            
+            const response = await fetch(`/api/yearlyTargets?year=${prevYear}&month=${prevMonth}`);
+            if (!response.ok) {
+                throw new Error('Failed to fetch previous month targets');
+            }
+            
+            const data = await response.json();
+            const prevMonthTargets = data[prevYear]?.[prevMonth] || {};
+            
+            // Filter out empty values and ensure numeric values
+            const validTargets = Object.fromEntries(
+                Object.entries(prevMonthTargets).filter(([_, value]) => value !== '')
+                    .map(([key, value]) => [key, parseFloat(value) || 0])
+            );
+            
+            setTargets(validTargets);
+            
+            const saveResponse = await fetch('/api/yearlyTargets', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    year: selectedYear,
+                    month: selectedMonth,
+                    targets: validTargets,
+                }),
+            });
+
+            if (!saveResponse.ok) {
+                throw new Error('Failed to save copied targets');
+            }
+            
+            alert(`Targets copied from ${months[prevMonth - 1]} ${prevYear} and saved!`);
+        } catch (error) {
+            console.error('Error copying targets:', error);
+            alert('Failed to copy spending targets from previous month.');
         }
     };
 
@@ -250,10 +302,64 @@ const SpendingTargets = () => {
 
             {/* Action Buttons */}
             <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-                <button onClick={handleSave} style={{ flex: 1 }}>Save Targets</button>
-                <button onClick={handleCopyToNextMonth} style={{ flex: 1 }}>Copy to Next Month</button>
+                <button 
+                    onClick={handleSave} 
+                    style={{ 
+                        flex: 1,
+                        padding: '10px',
+                        fontSize: '14px',
+                        borderRadius: '4px',
+                        border: '1px solid #ccc',
+                        backgroundColor: '#fff',
+                        cursor: 'pointer',
+                        minWidth: '120px'
+                    }}
+                >
+                    Save Targets
+                </button>
+                <button 
+                    onClick={handleCopyFromPreviousMonth}
+                    style={{ 
+                        flex: 1,
+                        padding: '10px',
+                        fontSize: '14px',
+                        borderRadius: '4px',
+                        border: '1px solid #ccc',
+                        backgroundColor: '#fff',
+                        cursor: 'pointer',
+                        minWidth: '120px'
+                    }}
+                >
+                    Copy from Previous
+                </button>
+                <button 
+                    onClick={handleCopyToNextMonth}
+                    style={{ 
+                        flex: 1,
+                        padding: '10px',
+                        fontSize: '14px',
+                        borderRadius: '4px',
+                        border: '1px solid #ccc',
+                        backgroundColor: '#fff',
+                        cursor: 'pointer',
+                        minWidth: '120px'
+                    }}
+                >
+                    Copy to Next
+                </button>
                 <Link to="/budget-manager" style={{ flex: 1 }}>
-                    <button style={{ width: '100%' }}>Back to Dashboard</button>
+                    <button style={{ 
+                        width: '100%',
+                        padding: '10px',
+                        fontSize: '14px',
+                        borderRadius: '4px',
+                        border: '1px solid #ccc',
+                        backgroundColor: '#fff',
+                        cursor: 'pointer',
+                        minWidth: '120px'
+                    }}>
+                        Back to Dashboard
+                    </button>
                 </Link>
             </div>
         </div>

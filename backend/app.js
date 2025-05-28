@@ -3,6 +3,7 @@ const cors = require('cors');
 const app = express();
 
 const transactionsRoutes = require('./routes/transactionsRoutes');
+const yearlyTargetsRoutes = require('./routes/yearlytargetsroutes');
 
 // CORS Configuration
 app.use(cors({
@@ -27,8 +28,7 @@ app.use((err, req, res, next) => {
 });
 
 // Ensure the transactions routes are properly mounted
+app.use('/api/transactions', transactionsRoutes);
+app.use('/api/yearlyTargets', yearlyTargetsRoutes);
 
-
-
-
-module.exports = app;app.use('/api/transactions', transactionsRoutes);module.exports = app;
+module.exports = app;

@@ -1,23 +1,25 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../database/config'); // Assuming PostgreSQL is used
+const pool = require('../database/config');
 
-// Fetch all targets for a specific year
+// Fetch targets for a specific year and optionally a specific month
 router.get('/', async (req, res) => {
-    const { year } = req.query;
+    const { year, month } = req.query;
 
     try {
-        const result = await pool.query(
-            'SELECT * FROM yearly_targets WHERE year = $1',
-            [year]
-        );
+        const query = month
+            ? 'SELECT * FROM yearly_targets WHERE year = $1 AND month = $2'
+            : 'SELECT * FROM yearly_targets WHERE year = $1';
+        const params = month ? [year, month] : [year];
+        
+        const result = await pool.query(query, params);
 
         // Transform the data into the expected structure
         const transformedData = result.rows.reduce((acc, row) => {
             const { year, month, category, target } = row;
             if (!acc[year]) acc[year] = {};
             if (!acc[year][month]) acc[year][month] = {};
-            acc[year][month][category] = parseFloat(target); // Ensure target is treated as a number
+            acc[year][month][category] = target === '' ? '' : parseFloat(target);
             return acc;
         }, {});
 
@@ -33,28 +35,36 @@ router.post('/', async (req, res) => {
     const { year, month, targets } = req.body;
 
     if (!year || !month || !targets) {
-        console.error('Missing required fields:', { year, month, targets }); // Debugging log
         return res.status(400).json({ error: 'Missing required fields' });
     }
 
     try {
-        // Iterate through the targets and upsert each category
-        for (const [category, target] of Object.entries(targets)) {
-            console.log(`Upserting target: year=${year}, month=${month}, category=${category}, target=${target}`); // Debugging log
-            await pool.query(
-                `
-                INSERT INTO yearly_targets (year, month, category, target)
-                VALUES ($1, $2, $3, $4)
-                ON CONFLICT (year, month, category)
-                DO UPDATE SET target = EXCLUDED.target
-                `,
-                [year, month, category, target]
-            );
-        }
+        // Begin transaction
+        await pool.query('BEGIN');
 
+        // Delete existing targets for this month/year
+        await pool.query(
+            'DELETE FROM yearly_targets WHERE year = $1 AND month = $2',
+            [year, month]
+        );
+
+        // Only insert non-empty numeric values
+        const insertPromises = Object.entries(targets)
+            .filter(([_, value]) => value !== null && value !== '' && !isNaN(value))
+            .map(([category, target]) =>
+                pool.query(
+                    'INSERT INTO yearly_targets (year, month, category, target) VALUES ($1, $2, $3, $4)',
+                    [year, month, category, parseFloat(target)]
+                )
+            );
+
+        await Promise.all(insertPromises);
+        await pool.query('COMMIT');
+        
         res.status(200).json({ message: 'Targets updated successfully' });
     } catch (error) {
-        console.error('Error updating yearly targets:', error); // Debugging log
+        await pool.query('ROLLBACK');
+        console.error('Error updating yearly targets:', error);
         res.status(500).json({ error: 'Failed to update yearly targets' });
     }
 });
