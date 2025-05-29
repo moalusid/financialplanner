@@ -45,6 +45,17 @@ const DebtDetails = () => {
     const [debt, setDebt] = useState(null);
     const [isEditing, setIsEditing] = useState(false);
 
+    const DEBT_CATEGORIES = [
+        'Personal Loan',
+        'Credit Card',
+        'Mortgage',
+        'Auto Loan',
+        'Cash Loan',
+        'Hire Purchase',
+        'Store Card',
+        'Other'
+    ];
+
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('en-BW', {
             style: 'currency',
@@ -387,6 +398,18 @@ const DebtDetails = () => {
                             style={{ width: '100%', marginBottom: '10px', padding: '8px' }}
                         />
                     </label>
+                    <label>
+                        <strong>Category:</strong>
+                        <select
+                            value={debt.category || 'Other'}
+                            onChange={(e) => setDebt({ ...debt, category: e.target.value })}
+                            style={{ width: '100%', marginBottom: '10px', padding: '8px' }}
+                        >
+                            {DEBT_CATEGORIES.map(category => (
+                                <option key={category} value={category}>{category}</option>
+                            ))}
+                        </select>
+                    </label>
                     <button
                         onClick={handleSaveChanges}
                         style={{
@@ -427,6 +450,7 @@ const DebtDetails = () => {
                             <p><strong>Interest Rate:</strong> {debt.interestRate}%</p>
                             <p><strong>Minimum Payment:</strong> {formatCurrency(debt.minPayment)}</p>
                             <p><strong>Payment Date:</strong> {debt.payment_date ? `${debt.payment_date}${getDaySuffix(debt.payment_date)} of each month` : 'Not set'}</p>
+                            <p><strong>Category:</strong> {debt.category || 'Other'}</p>
                         </>
                     )}
                     {debt.type === 'Revolving' && (
@@ -436,6 +460,7 @@ const DebtDetails = () => {
                             <p><strong>Interest Rate:</strong> {debt.interestRate}%</p>
                             <p><strong>Minimum Payment:</strong> {formatCurrency(debt.minPayment)}</p>
                             <p><strong>Payment Date:</strong> {debt.payment_date ? `${debt.payment_date}${getDaySuffix(debt.payment_date)} of each month` : 'Not set'}</p>
+                            <p><strong>Category:</strong> {debt.category || 'Other'}</p>
                         </>
                     )}
                     <button

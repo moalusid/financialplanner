@@ -98,26 +98,33 @@ const DebtManagement = () => {
 
     // Add chart data preparation functions
     const prepareDoughnutData = () => {
-        const debtsByType = debts.reduce((result, debt) => {
-            const type = debt.type || 'Unknown';
-            if (!result[type]) {
-                result[type] = 0;
+        const debtsByCategory = debts.reduce((result, debt) => {
+            const category = debt.category || 'Other';
+            if (!result[category]) {
+                result[category] = 0;
             }
-            result[type] += parseFloat(debt.balance) || 0;
+            result[category] += parseFloat(debt.balance) || 0;
             return result;
         }, {});
 
+        const CATEGORY_COLORS = {
+            'Personal Loan': '#FF9800',
+            'Credit Card': '#F44336',
+            'Mortgage': '#2196F3',
+            'Auto Loan': '#4CAF50',
+            'Cash Loan': '#9C27B0',
+            'Hire Purchase': '#FF5722',
+            'Store Card': '#795548',
+            'Other': '#607D8B'
+        };
+
         return {
-            labels: Object.keys(debtsByType),
+            labels: Object.keys(debtsByCategory),
             datasets: [{
-                data: Object.values(debtsByType),
-                backgroundColor: [
-                    'rgba(255, 99, 132, 7)',
-                    'rgba(54, 162, 235, 0.7)',
-                    'rgba(255, 206, 86, 0.7)',
-                    'rgba(75, 192, 192, 0.7)',
-                    'rgba(153, 102, 255, 0.7)',
-                ],
+                data: Object.values(debtsByCategory),
+                backgroundColor: Object.keys(debtsByCategory).map(category => 
+                    CATEGORY_COLORS[category] || CATEGORY_COLORS['Other']
+                ),
                 borderWidth: 1
             }]
         };
@@ -434,14 +441,6 @@ const DebtManagement = () => {
                     <Typography variant="h4">
                         Debt Management Dashboard
                     </Typography>
-                    <Button
-                        variant="contained"
-                        color="primary"
-                        component={Link}
-                        to="/debt-insights"
-                    >
-                        View Debt Insights
-                    </Button>
                 </Box>
                 <Grid container spacing={3}>
                     <Grid item xs={12} sm={6} md={3}>
@@ -541,6 +540,28 @@ const DebtManagement = () => {
                         </Card>
                     </Grid>
                 </Grid>
+
+                {/* Add button box here */}
+                <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, my: 4 }}>
+                    <Button
+                        variant="contained"
+                        color="primary"
+                        component={Link}
+                        to="/debt-insights"
+                    >
+                        View Debt Insights
+                    </Button>
+                    <Button
+                        variant="contained"
+                        color="primary"
+                        startIcon={<Add />}
+                        component={Link}
+                        to="/add-debt-type"
+                    >
+                        Add New Debt
+                    </Button>
+                </Box>
+
                 <Divider sx={{ my: 4 }} />
                 <Tabs value={currentTab} onChange={handleTabChange} centered>
                     <Tab label="Overview" />
@@ -574,16 +595,7 @@ const DebtManagement = () => {
                 )}
                 {currentTab === 1 && (
                     <div>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                            <Button
-                                variant="contained"
-                                color="primary"
-                                startIcon={<Add />}
-                                component={Link}
-                                to="/add-debt-type"
-                            >
-                                Add New Debt
-                            </Button>
+                        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
                             <Stack direction="row" spacing={1}>
                                 <FormControl variant="outlined" size="small">
                                     <InputLabel>Sort By</InputLabel>
