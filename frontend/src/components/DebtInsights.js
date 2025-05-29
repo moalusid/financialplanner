@@ -28,11 +28,8 @@ ChartJS.register(
 );
 
 const DebtInsights = () => {
-    // Remove unused states
     const [currentTab, setCurrentTab] = useState(0);
     const [debts, setDebts] = useState([]);
-    const [selectedDebt1, setSelectedDebt1] = useState(null);
-    const [selectedDebt2, setSelectedDebt2] = useState(null);
     const [scenarioDebt, setScenarioDebt] = useState(null);
     const [interestChange, setInterestChange] = useState(0);
     const [rateChangeType, setRateChangeType] = useState('increase');
@@ -283,96 +280,6 @@ const DebtInsights = () => {
     const generateStrategyComparisonChart = () => {
         // ... rest of existing code ...
     };
-
-    // Helper Components
-    const ComparisonTable = () => (
-        <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-            <Card sx={{ maxWidth: 800, width: '100%', bgcolor: '#f8f9fa' }}>
-                <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <Typography variant="h6" gutterBottom align="center" sx={{ mb: 3 }}>
-                        Debt Comparison
-                    </Typography>
-                    <Box sx={{ width: '100%', maxWidth: 700 }}>
-                        <Grid container spacing={3}>
-                            <Grid item xs={12} md={6}>
-                                <Card sx={{ height: '100%', bgcolor: '#e3f2fd' }}>
-                                    <CardContent sx={{ p: 2 }}>
-                                        <Typography variant="h6" color="primary" gutterBottom>
-                                            {selectedDebt1.name}
-                                        </Typography>
-                                        <Stack spacing={2} divider={<Divider flexItem />}>
-                                            <Box>
-                                                <Typography variant="body2" color="textSecondary">Balance</Typography>
-                                                <Typography variant="body1">{formatCurrency(selectedDebt1.balance)}</Typography>
-                                            </Box>
-                                            <Box>
-                                                <Typography variant="body2" color="textSecondary">Interest Rate</Typography>
-                                                <Typography variant="body1">{selectedDebt1.interest_rate}%</Typography>
-                                            </Box>
-                                            <Box>
-                                                <Typography variant="body2" color="textSecondary">Monthly Payment</Typography>
-                                                <Typography variant="body1">{formatCurrency(selectedDebt1.min_payment)}</Typography>
-                                            </Box>
-                                        </Stack>
-                                    </CardContent>
-                                </Card>
-                            </Grid>
-                            <Grid item xs={12} md={6}>
-                                <Card sx={{ height: '100%', bgcolor: '#fff3e0' }}>
-                                    <CardContent sx={{ p: 2 }}>
-                                        <Typography variant="h6" color="secondary" gutterBottom>
-                                            {selectedDebt2.name}
-                                        </Typography>
-                                        <Stack spacing={2} divider={<Divider flexItem />}>
-                                            <Box>
-                                                <Typography variant="body2" color="textSecondary">Balance</Typography>
-                                                <Typography variant="body1">{formatCurrency(selectedDebt2.balance)}</Typography>
-                                            </Box>
-                                            <Box>
-                                                <Typography variant="body2" color="textSecondary">Interest Rate</Typography>
-                                                <Typography variant="body1">{selectedDebt2.interest_rate}%</Typography>
-                                            </Box>
-                                            <Box>
-                                                <Typography variant="body2" color="textSecondary">Monthly Payment</Typography>
-                                                <Typography variant="body1">{formatCurrency(selectedDebt2.min_payment)}</Typography>
-                                            </Box>
-                                        </Stack>
-                                    </CardContent>
-                                </Card>
-                            </Grid>
-                            <Grid item xs={12}>
-                                <Card sx={{ bgcolor: '#fce4ec' }}>
-                                    <CardContent sx={{ p: 2 }}>
-                                        <Typography variant="h6" color="primary" gutterBottom>
-                                            Comparison Analysis
-                                        </Typography>
-                                        <Stack spacing={2} divider={<Divider flexItem />}>
-                                            <Box>
-                                                <Typography variant="body2" color="textSecondary">Balance Difference</Typography>
-                                                <Typography variant="body1">{formatCurrency(Math.abs(selectedDebt1.balance - selectedDebt2.balance))}</Typography>
-                                            </Box>
-                                            <Box>
-                                                <Typography variant="body2" color="textSecondary">Rate Difference</Typography>
-                                                <Typography variant="body1">
-                                                    {Math.abs(selectedDebt1.interest_rate - selectedDebt2.interest_rate).toFixed(2)}%
-                                                </Typography>
-                                            </Box>
-                                            <Box>
-                                                <Typography variant="body2" color="textSecondary">Payment Difference</Typography>
-                                                <Typography variant="body1">
-                                                    {formatCurrency(Math.abs(selectedDebt1.min_payment - selectedDebt2.min_payment))}
-                                                </Typography>
-                                            </Box>
-                                        </Stack>
-                                    </CardContent>
-                                </Card>
-                            </Grid>
-                        </Grid>
-                    </Box>
-                </CardContent>
-            </Card>
-        </Box>
-    );
 
     const calculateDaysDifference = (date1, date2) => {
         return Math.abs(Math.ceil((date2 - date1) / (1000 * 60 * 60 * 24)));
@@ -740,44 +647,6 @@ const DebtInsights = () => {
             </Card>
         );
     };
-
-    // Comparison Tab Panel
-    const ComparisonPanel = () => (
-        <Box sx={{ width: '100%', p: 2 }}>
-            <Typography variant="h5" gutterBottom>Compare Debts</Typography>
-            <Grid container spacing={3} sx={{ mb: 4, minHeight: '100px' }}>
-                <Grid item xs={12} sm={6}>
-                    <FormControl fullWidth size="medium" sx={{ minWidth: '200px' }}>
-                        <InputLabel>First Debt</InputLabel>
-                        <Select
-                            value={selectedDebt1?.id || ''}
-                            onChange={(e) => setSelectedDebt1(debts.find(d => d.id === e.target.value))}
-                            label="First Debt"
-                        >
-                            {debts.map(debt => (
-                                <MenuItem key={debt.id} value={debt.id}>{debt.name}</MenuItem>
-                            ))}
-                        </Select>
-                    </FormControl>
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                    <FormControl fullWidth size="medium" sx={{ minWidth: '200px' }}>
-                        <InputLabel>Second Debt</InputLabel>
-                        <Select
-                            value={selectedDebt2?.id || ''}
-                            onChange={(e) => setSelectedDebt2(debts.find(d => d.id === e.target.value))}
-                            label="Second Debt"
-                        >
-                            {debts.map(debt => (
-                                <MenuItem key={debt.id} value={debt.id}>{debt.name}</MenuItem>
-                            ))}
-                        </Select>
-                    </FormControl>
-                </Grid>
-            </Grid>
-            {selectedDebt1 && selectedDebt2 && <ComparisonTable />}
-        </Box>
-    );
 
     // What-If Panel
     const handleInterestChange = (value) => {
@@ -1164,14 +1033,12 @@ const DebtInsights = () => {
             </Typography>
             
             <Tabs value={currentTab} onChange={(e, v) => setCurrentTab(v)} centered sx={{ mb: 3 }}>
-                <Tab label="Compare Debts" />
                 <Tab label="What-If Scenarios" />
                 <Tab label="Extra Payment Calculator" />
             </Tabs>
 
-            {currentTab === 0 && <ComparisonPanel />}
-            {currentTab === 1 && <WhatIfPanel />}
-            {currentTab === 2 && <ExtraPaymentPanel />}
+            {currentTab === 0 && <WhatIfPanel />}
+            {currentTab === 1 && <ExtraPaymentPanel />}
         </Box>
     );
 };
