@@ -60,6 +60,12 @@ const DebtDetails = () => {
         return `${day}-${month}-${year}`;
     };
 
+    const formatDateForInput = (dateString) => {
+        if (!dateString) return '';
+        const date = new Date(dateString);
+        return date.toISOString().split('T')[0];
+    };
+
     useEffect(() => {
         const fetchDebt = async () => {
             try {
@@ -72,10 +78,11 @@ const DebtDetails = () => {
                     ...data,
                     originalAmount: data.original_amount,
                     loanTerm: data.loan_term,
-                    startDate: data.start_date,
+                    startDate: formatDateForInput(data.start_date),
                     interestRate: data.interest_rate,
                     minPayment: data.min_payment,
                     debtLimit: data.debt_limit,
+                    paymentDate: data.payment_date || '' // Add this line
                 });
             } catch (error) {
                 console.error('Error fetching debt:', error);
@@ -95,6 +102,7 @@ const DebtDetails = () => {
                 interest_rate: debt.interestRate,
                 min_payment: debt.minPayment,
                 debt_limit: debt.debtLimit,
+                payment_date: debt.paymentDate ? parseInt(debt.paymentDate) : null // Add proper conversion
             };
 
             const response = await fetch(`/api/debts/${id}`, {
@@ -296,7 +304,7 @@ const DebtDetails = () => {
                                 <strong>Start Date:</strong>
                                 <input
                                     type="date"
-                                    value={debt.startDate}
+                                    value={formatDateForInput(debt.startDate)}
                                     onChange={(e) => setDebt({ ...debt, startDate: e.target.value })}
                                     style={{ width: '100%', marginBottom: '10px', padding: '8px' }}
                                 />
@@ -327,6 +335,23 @@ const DebtDetails = () => {
                             type="number"
                             value={debt.minPayment}
                             onChange={(e) => setDebt({ ...debt, minPayment: parseFloat(e.target.value) || 0 })}
+                            style={{ width: '100%', marginBottom: '10px', padding: '8px' }}
+                        />
+                    </label>
+                    <label>
+                        <strong>Payment Date (1-31):</strong>
+                        <div style={{ color: '#666', fontSize: '0.9em', marginBottom: '5px' }}>
+                            Current: {debt.payment_date ? `${debt.payment_date}${getDaySuffix(debt.payment_date)}` : 'Not set'}
+                        </div>
+                        <input
+                            type="number"
+                            value={debt.paymentDate}
+                            onChange={(e) => setDebt({ 
+                                ...debt, 
+                                paymentDate: e.target.value ? Math.min(31, Math.max(1, parseInt(e.target.value))) : ''
+                            })}
+                            min="1"
+                            max="31"
                             style={{ width: '100%', marginBottom: '10px', padding: '8px' }}
                         />
                     </label>
@@ -369,6 +394,7 @@ const DebtDetails = () => {
                             <p><strong>Balance:</strong> {formatCurrency(debt.balance)}</p>
                             <p><strong>Interest Rate:</strong> {debt.interestRate}%</p>
                             <p><strong>Minimum Payment:</strong> {formatCurrency(debt.minPayment)}</p>
+                            <p><strong>Payment Date:</strong> {debt.payment_date ? `${debt.payment_date}${getDaySuffix(debt.payment_date)} of each month` : 'Not set'}</p>
                         </>
                     )}
                     {debt.type === 'Revolving' && (
@@ -377,6 +403,7 @@ const DebtDetails = () => {
                             <p><strong>Balance:</strong> {formatCurrency(debt.balance)}</p>
                             <p><strong>Interest Rate:</strong> {debt.interestRate}%</p>
                             <p><strong>Minimum Payment:</strong> {formatCurrency(debt.minPayment)}</p>
+                            <p><strong>Payment Date:</strong> {debt.payment_date ? `${debt.payment_date}${getDaySuffix(debt.payment_date)} of each month` : 'Not set'}</p>
                         </>
                     )}
                     <button
@@ -430,6 +457,17 @@ const DebtDetails = () => {
             </Link>
         </div>
     );
+};
+
+// Add helper function for day suffixes
+const getDaySuffix = (day) => {
+    if (day >= 11 && day <= 13) return 'th';
+    switch (day % 10) {
+        case 1: return 'st';
+        case 2: return 'nd';
+        case 3: return 'rd';
+        default: return 'th';
+    }
 };
 
 export default DebtDetails;

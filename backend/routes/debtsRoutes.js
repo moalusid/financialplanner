@@ -32,24 +32,40 @@ router.get('/:id', async (req, res) => {
 // Update a specific debt
 router.put('/:id', async (req, res) => {
     const { id } = req.params;
-    const { name, balance, interestRate, minPayment, debtLimit, originalAmount, loanTerm, startDate, type } = req.body;
+    const {
+        name, type, balance, original_amount, loan_term,
+        start_date, interest_rate, min_payment, debt_limit,
+        payment_date  // Make sure to extract payment_date from request
+    } = req.body;
 
     try {
+        console.log('Updating debt with data:', req.body); // Debug log
+
         const result = await pool.query(
-            `UPDATE debts
-             SET name = $1, balance = $2, interest_rate = $3, min_payment = $4, debt_limit = $5,
-                 original_amount = $6, loan_term = $7, start_date = $8, type = $9
-             WHERE id = $10 RETURNING *`,
-            [name, balance, interestRate, minPayment, debtLimit, originalAmount, loanTerm, startDate, type, id]
+            `UPDATE debts 
+             SET name = $1, type = $2, balance = $3, 
+                 original_amount = $4, loan_term = $5,
+                 start_date = $6, interest_rate = $7, 
+                 min_payment = $8, debt_limit = $9,
+                 payment_date = $10
+             WHERE id = $11 
+             RETURNING *`,
+            [
+                name, type, balance, original_amount, loan_term,
+                start_date, interest_rate, min_payment, debt_limit,
+                payment_date, // Add payment_date to query params
+                id
+            ]
         );
 
-        if (result.rows.length === 0) {
-            return res.status(404).json({ error: 'Debt not found' });
+        if (result.rows.length > 0) {
+            console.log('Updated debt:', result.rows[0]); // Debug log
+            res.json(result.rows[0]);
+        } else {
+            res.status(404).json({ error: 'Debt not found' });
         }
-
-        res.json(result.rows[0]);
     } catch (error) {
-        console.error('Error updating debt:', error);
+        console.error('Error updating debt:', error); // Debug log
         res.status(500).json({ error: 'Failed to update debt' });
     }
 });
