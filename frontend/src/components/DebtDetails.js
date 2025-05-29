@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Bar } from 'react-chartjs-2';
 import { Chart, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Tooltip, Legend } from 'chart.js';
 import { Typography } from '@mui/material';
+import { generateDebtInstallments } from '../utils/financialCalculations';
 Chart.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Tooltip, Legend);
 
 // If you see "Module not found: Error: Can't resolve 'react-chartjs-2'"
@@ -102,7 +103,7 @@ const DebtDetails = () => {
                 interest_rate: debt.interestRate,
                 min_payment: debt.minPayment,
                 debt_limit: debt.debtLimit,
-                payment_date: debt.paymentDate ? parseInt(debt.paymentDate) : null // Add proper conversion
+                payment_date: debt.paymentDate ? parseInt(debt.paymentDate) : null
             };
 
             const response = await fetch(`/api/debts/${id}`, {
@@ -117,11 +118,32 @@ const DebtDetails = () => {
                 throw new Error('Failed to update debt');
             }
 
+            // If payment date is set, create planned expenses
+            if (debt.paymentDate) {
+                const installments = generateDebtInstallments({
+                    ...updatedDebt,
+                    id: id,
+                    name: debt.name,
+                    balance: debt.balance
+                });
+
+                // Create planned expenses for each installment
+                for (const installment of installments) {
+                    await fetch('http://localhost:5000/api/planned-expenses', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(installment),
+                    });
+                }
+            }
+
             setIsEditing(false);
-            alert('Debt updated successfully!');
+            alert('Debt and planned payments updated successfully!');
         } catch (error) {
             console.error('Error updating debt:', error);
-            alert('An error occurred while updating the debt.');
+            alert('An error occurred while updating.');
         }
     };
 

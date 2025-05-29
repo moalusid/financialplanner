@@ -88,4 +88,40 @@ export const calculateRequiredPayment = (balance, oldRate, newRate, currentPayme
     }
 };
 
+/**
+ * Generates monthly installment dates for a debt
+ * @param {Object} debt - Debt object with balance, interest_rate, min_payment, payment_date
+ * @returns {Array} Array of installment objects with dates and amounts
+ */
+export const generateDebtInstallments = (debt) => {
+    if (!debt.payment_date || !debt.balance || !debt.min_payment) return [];
+    
+    const payoffDetails = calculatePayoffDetails(debt.balance, debt.interest_rate, debt.min_payment);
+    if (!payoffDetails) return [];
+
+    const installments = [];
+    const startDate = new Date();
+    const months = payoffDetails.months;
+
+    for (let i = 0; i < months; i++) {
+        const installmentDate = new Date(
+            startDate.getFullYear(),
+            startDate.getMonth() + i,
+            debt.payment_date
+        );
+        
+        installments.push({
+            due_date: installmentDate.toISOString().split('T')[0],
+            amount: debt.min_payment,
+            description: `${debt.name} Installment`,
+            category: 'Debt Payments',
+            classification: 'Essentials',
+            reminder_days: 7,
+            debt_id: debt.id
+        });
+    }
+
+    return installments;
+};
+
 // Add more financial calculation functions here as needed

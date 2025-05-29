@@ -44,7 +44,6 @@ router.post('/:id/complete', async (req, res) => {
     try {
         await client.query('BEGIN');
         
-        // Get planned expense details and verify it exists
         const expenseResult = await client.query(
             'SELECT * FROM plannedexpenses WHERE id = $1 AND status = \'pending\'',
             [id]
@@ -59,11 +58,11 @@ router.post('/:id/complete', async (req, res) => {
         const scheduledDate = new Date(expense.due_date).toLocaleDateString('en-BW');
         const enhancedDescription = `${expense.description} (Scheduled for ${scheduledDate})`;
 
-        // Create corresponding transaction with enhanced description
+        // Simplified transaction creation without notes
         const transactionResult = await client.query(
             `INSERT INTO transactions 
-            (type, category, description, amount, date, classification, notes)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            (type, category, description, amount, date, classification)
+            VALUES ($1, $2, $3, $4, $5, $6)
             RETURNING id`,
             [
                 'expense',
@@ -71,8 +70,7 @@ router.post('/:id/complete', async (req, res) => {
                 enhancedDescription,
                 expense.amount,
                 currentDate,
-                expense.classification,
-                'Created from planned expense'
+                expense.classification
             ]
         );
 
