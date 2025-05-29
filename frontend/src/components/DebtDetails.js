@@ -99,12 +99,16 @@ const DebtDetails = () => {
                 ...debt,
                 original_amount: debt.type === 'revolving' ? debt.debtLimit : debt.originalAmount,
                 loan_term: debt.loanTerm,
-                start_date: debt.startDate,
+                start_date: debt.startDate || null,
                 interest_rate: debt.interestRate,
                 min_payment: debt.minPayment,
                 debt_limit: debt.debtLimit,
                 payment_date: debt.paymentDate ? parseInt(debt.paymentDate) : null
             };
+
+            if (!updatedDebt.start_date) {
+                delete updatedDebt.start_date;
+            }
 
             const response = await fetch(`/api/debts/${id}`, {
                 method: 'PUT',
@@ -117,6 +121,12 @@ const DebtDetails = () => {
             if (!response.ok) {
                 throw new Error('Failed to update debt');
             }
+
+            // Update local state with new values
+            setDebt(prevDebt => ({
+                ...prevDebt,
+                payment_date: updatedDebt.payment_date // This ensures the display updates immediately
+            }));
 
             // If payment date is set, create planned expenses
             if (debt.paymentDate) {

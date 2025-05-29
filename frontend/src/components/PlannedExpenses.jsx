@@ -14,6 +14,7 @@ const PlannedExpenses = () => {
     });
     const [currentMonth, setCurrentMonth] = useState(new Date().getMonth() + 1);
     const [currentYear, setCurrentYear] = useState(new Date().getYear() + 1900);
+    const [showAllMonths, setShowAllMonths] = useState(false);
 
     useEffect(() => {
         fetchExpenses();
@@ -60,6 +61,205 @@ const PlannedExpenses = () => {
         } catch (error) {
             console.error('Complete error details:', error.response?.data || error.message);
         }
+    };
+
+    const handleCancel = async (id) => {
+        try {
+            await axios.delete(`http://localhost:5000/api/planned-expenses/${id}`);
+            fetchExpenses();
+        } catch (error) {
+            console.error('Cancel error details:', error.response?.data || error.message);
+        }
+    };
+
+    const groupExpensesByMonth = (expenses) => {
+        const overdue = [];
+        const completed = [];
+        const byMonth = {};
+        const today = new Date();
+        
+        expenses.forEach(expense => {
+            if (expense.status === 'completed') {
+                completed.push(expense);
+                return;
+            }
+            if (expense.status === 'overdue') {
+                overdue.push(expense);
+                return;
+            }
+
+            const date = new Date(expense.due_date);
+            // Calculate months from now
+            const monthsAway = (date.getFullYear() - today.getFullYear()) * 12 + date.getMonth() - today.getMonth();
+            const key = monthsAway;
+
+            if (!byMonth[key]) {
+                byMonth[key] = {
+                    monthName: date.toLocaleString('default', { month: 'long', year: 'numeric' }),
+                    expenses: [],
+                    sortKey: monthsAway
+                };
+            }
+            byMonth[key].expenses.push(expense);
+        });
+
+        // Sort months by distance from current month
+        const sortedMonths = Object.values(byMonth)
+            .sort((a, b) => a.sortKey - b.sortKey)
+            .map(({ monthName, expenses }) => ({ monthName, expenses }));
+
+        return { overdue, months: sortedMonths, completed };
+    };
+
+    const renderExpensesSection = () => {
+        const { overdue, months, completed } = groupExpensesByMonth(expenses);
+        const visibleMonths = showAllMonths ? months : months.slice(0, 3);
+
+        return (
+            <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+                {/* Overdue Section */}
+                {overdue.length > 0 && (
+                    <div style={{ marginBottom: '20px' }}>
+                        <h4 style={{ 
+                            color: '#d32f2f',
+                            padding: '10px',
+                            backgroundColor: '#ffebee',
+                            borderRadius: '4px'
+                        }}>
+                            Overdue ({overdue.length})
+                        </h4>
+                        {overdue.map(expense => renderExpenseBar(expense))}
+                    </div>
+                )}
+
+                {/* Monthly Sections */}
+                {visibleMonths.map((month, index) => (
+                    <div key={month.monthName} style={{ 
+                        marginBottom: '20px',
+                        backgroundColor: '#f8f9fa',
+                        borderRadius: '8px',
+                        padding: '15px'
+                    }}>
+                        <h4 style={{ marginBottom: '10px' }}>
+                            {month.monthName} ({month.expenses.length})
+                        </h4>
+                        {month.expenses.map(expense => renderExpenseBar(expense))}
+                    </div>
+                ))}
+
+                {/* Show More/Less Button */}
+                {months.length > 3 && (
+                    <button
+                        onClick={() => setShowAllMonths(!showAllMonths)}
+                        style={{
+                            width: '100%',
+                            padding: '10px',
+                            marginTop: '10px',
+                            backgroundColor: '#e0e0e0',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        {showAllMonths ? 'Show Less' : `Show ${months.length - 3} More Months`}
+                    </button>
+                )}
+
+                {/* Completed Section */}
+                {completed.length > 0 && (
+                    <div style={{ 
+                        marginTop: '20px',
+                        marginBottom: '20px',
+                        backgroundColor: '#e8f5e9',
+                        borderRadius: '8px',
+                        padding: '15px'
+                    }}>
+                        <h4 style={{ 
+                            color: '#2e7d32',
+                            marginBottom: '10px'
+                        }}>
+                            Completed ({completed.length})
+                        </h4>
+                        {completed.map(expense => renderExpenseBar(expense))}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    const getBarWidth = (amount) => {
+        const maxAmount = Math.max(...expenses.map(e => parseFloat(e.amount)));
+        return maxAmount > 0 ? `${(parseFloat(amount) / maxAmount) * 100}%` : '0%';
+    };
+
+    const renderExpenseBar = (expense) => {
+        return (
+            <div key={expense.id} style={{
+                position: 'relative',
+                height: '40px',
+                marginBottom: '8px',
+                backgroundColor: '#fff',
+                borderRadius: '4px',
+                border: '1px solid #ddd'
+            }}>
+                {/* Background bar - removed closing slash */}
+                <div style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    height: '100%',
+                    width: '100%',
+                    backgroundColor: expense.status === 'overdue' ? '#ffebee' : '#e3f2fd',
+                    borderRadius: '4px'
+                }}></div>
+                <div style={{
+                    position: 'relative',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '0 15px',
+                    height: '100%',
+                    zIndex: 1
+                }}>
+                    <span>{expense.description}</span>
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                        <span style={{ marginRight: '20px' }}>
+                            P{expense.amount.toLocaleString('en-BW', {minimumFractionDigits: 2})}
+                        </span>
+                        {(expense.status === 'pending' || expense.status === 'overdue') && (
+                            <>
+                                <button
+                                    onClick={() => handleComplete(expense.id)}
+                                    style={{
+                                        padding: '4px 8px',
+                                        backgroundColor: expense.status === 'overdue' ? '#d32f2f' : '#007bff',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: '4px',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    Mark as Paid
+                                </button>
+                                <button
+                                    onClick={() => handleCancel(expense.id)}
+                                    style={{
+                                        padding: '4px 8px',
+                                        backgroundColor: '#6c757d',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: '4px',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    Cancel
+                                </button>
+                            </>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
     };
 
     return (
@@ -184,55 +384,7 @@ const PlannedExpenses = () => {
                     <p style={{ textAlign: 'center', color: '#666' }}>
                         No planned expenses found for this period.
                     </p>
-                ) : (
-                    <div style={{ overflowX: 'auto' }}>
-                        <table style={tableStyle}>
-                            <thead>
-                                <tr>
-                                    <th>Description</th>
-                                    <th>Amount</th>
-                                    <th>Due Date</th>
-                                    <th>Classification</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {expenses.map(expense => (
-                                    <tr 
-                                        key={expense.id} 
-                                        style={{
-                                            backgroundColor: expense.status === 'completed' ? '#f8f9fa' : 'white'
-                                        }}
-                                    >
-                                        <td>{expense.description}</td>
-                                        <td>P{expense.amount.toLocaleString('en-BW', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                                        <td>{new Date(expense.due_date).toLocaleDateString('en-BW')}</td>
-                                        <td>{expense.classification}</td>
-                                        <td>{expense.status}</td>
-                                        <td>
-                                            {expense.status !== 'completed' && (
-                                                <button
-                                                    onClick={() => handleComplete(expense.id)}
-                                                    style={{
-                                                        padding: '8px 16px',
-                                                        backgroundColor: '#007bff',
-                                                        color: 'white',
-                                                        border: 'none',
-                                                        borderRadius: '4px',
-                                                        cursor: 'pointer'
-                                                    }}
-                                                >
-                                                    Mark as Paid
-                                                </button>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
+                ) : renderExpensesSection()}
             </div>
             
             <div style={{ textAlign: 'center', marginTop: '20px' }}>
