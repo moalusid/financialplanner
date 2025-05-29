@@ -1,26 +1,21 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   Typography, Card, CardContent, LinearProgress, Button, Box, 
-  Grid, Tabs, Tab, Divider, Select, MenuItem, FormControl, 
-  InputLabel, TextField, Chip, Stack,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper
+  Grid, Divider, Stack
 } from '@mui/material';
-import { 
-  Add, SortTwoTone, FilterList, ArrowUpward, ArrowDownward,
-  Timeline, AutoGraph, Scale, Payment 
-} from '@mui/icons-material';
-import { Doughnut, Bar } from 'react-chartjs-2';
+import { Add } from '@mui/icons-material';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { 
   Chart, ArcElement, CategoryScale, LinearScale, BarElement, 
-  Title, Tooltip, Legend 
+  Title
 } from 'chart.js';
 
 // Register Chart.js components
-Chart.register(ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
+Chart.register(ArcElement, CategoryScale, LinearScale, BarElement, Title);
 
 const DebtManagement = () => {
-    // Add new states
+    // Remove currentTab state and handleTabChange
     const [debts, setDebts] = useState([]);
     const [filteredDebts, setFilteredDebts] = useState([]);
     const [totalOutstandingDebt, setTotalOutstandingDebt] = useState(0);
@@ -29,7 +24,6 @@ const DebtManagement = () => {
     const [averageInterestRate, setAverageInterestRate] = useState(0);
     const [totalInterestPaid, setTotalInterestPaid] = useState(0);
     const [debtToIncomeRatio, setDebtToIncomeRatio] = useState(0);
-    const [currentTab, setCurrentTab] = useState(0);
     const [sortField, setSortField] = useState('balance');
     const [sortDirection, setSortDirection] = useState('desc');
     const [filterType, setFilterType] = useState('all');
@@ -98,7 +92,7 @@ const DebtManagement = () => {
 
     // Add chart data preparation functions
     const prepareDoughnutData = () => {
-        const debtsByCategory = debts.reduce((result, debt) => {
+        const data = debts.reduce((result, debt) => {
             const category = debt.category || 'Other';
             if (!result[category]) {
                 result[category] = 0;
@@ -107,7 +101,7 @@ const DebtManagement = () => {
             return result;
         }, {});
 
-        const CATEGORY_COLORS = {
+        const COLORS = {
             'Personal Loan': '#FF9800',
             'Credit Card': '#F44336',
             'Mortgage': '#2196F3',
@@ -118,16 +112,13 @@ const DebtManagement = () => {
             'Other': '#607D8B'
         };
 
-        return {
-            labels: Object.keys(debtsByCategory),
-            datasets: [{
-                data: Object.values(debtsByCategory),
-                backgroundColor: Object.keys(debtsByCategory).map(category => 
-                    CATEGORY_COLORS[category] || CATEGORY_COLORS['Other']
-                ),
-                borderWidth: 1
-            }]
-        };
+        const chartData = Object.entries(data).map(([name, value]) => ({
+            name,
+            value,
+            fill: COLORS[name] || COLORS['Other']
+        }));
+
+        return chartData;
     };
 
     const prepareBalanceHistoryData = () => {
@@ -404,10 +395,6 @@ const DebtManagement = () => {
     }, [debts, totalOutstandingDebt, totalMonthlyPayments, averageInterestRate]);
 
     // Add new event handlers
-    const handleTabChange = (event, newValue) => {
-        setCurrentTab(newValue);
-    };
-
     const toggleSortDirection = () => {
         setSortDirection(prevDirection => prevDirection === 'asc' ? 'desc' : 'asc');
     };
@@ -541,7 +528,7 @@ const DebtManagement = () => {
                     </Grid>
                 </Grid>
 
-                {/* Add button box here */}
+                {/* Add button box */}
                 <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, my: 4 }}>
                     <Button
                         variant="contained"
@@ -550,6 +537,14 @@ const DebtManagement = () => {
                         to="/debt-insights"
                     >
                         View Debt Insights
+                    </Button>
+                    <Button
+                        variant="contained"
+                        color="primary"
+                        component={Link}
+                        to="/debt-list"
+                    >
+                        View All Debts
                     </Button>
                     <Button
                         variant="contained"
@@ -563,279 +558,229 @@ const DebtManagement = () => {
                 </Box>
 
                 <Divider sx={{ my: 4 }} />
-                <Tabs value={currentTab} onChange={handleTabChange} centered>
-                    <Tab label="Overview" />
-                    <Tab label="Details" />
-                    <Tab label="Analysis" />
-                </Tabs>
-                <Divider sx={{ my: 2 }} />
-                {currentTab === 0 && (
-                    <Grid container spacing={2}>
-                        <Grid item xs={12} md={6}>
-                            <Card>
-                                <CardContent>
-                                    <Typography variant="h6" color="textSecondary" gutterBottom>
-                                        Debt Distribution
-                                    </Typography>
-                                    <Doughnut data={prepareDoughnutData()} />
-                                </CardContent>
-                            </Card>
-                        </Grid>
-                        <Grid item xs={12} md={6}>
-                            <Card>
-                                <CardContent>
-                                    <Typography variant="h6" color="textSecondary" gutterBottom>
-                                        Balance History
-                                    </Typography>
-                                    <Bar data={prepareBalanceHistoryData()} />
-                                </CardContent>
-                            </Card>
-                        </Grid>
+
+                {/* Single Grid for Donut Chart */}
+                <Grid container justifyContent="center">
+                    <Grid item xs={12} md={8}>
+                        <Card>
+                            <CardContent>
+                                <Typography variant="h6" color="textSecondary" gutterBottom>
+                                    Debt Distribution by Category
+                                </Typography>
+                                <ResponsiveContainer width="100%" height={400}>
+                                    <PieChart>
+                                        <Pie
+                                            data={prepareDoughnutData()}
+                                            dataKey="value"
+                                            nameKey="name"
+                                            cx="50%"
+                                            cy="50%"
+                                            innerRadius={60}
+                                            outerRadius={120}
+                                            label={({name, value}) => `${name}: P${value.toLocaleString('en-BW')}`}
+                                        >
+                                            {prepareDoughnutData().map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={entry.fill} />
+                                            ))}
+                                        </Pie>
+                                        <Tooltip 
+                                            formatter={(value) => `P${value.toLocaleString('en-BW')}`}
+                                        />
+                                        <Legend />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            </CardContent>
+                        </Card>
                     </Grid>
-                )}
-                {currentTab === 1 && (
-                    <div>
-                        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
-                            <Stack direction="row" spacing={1}>
-                                <FormControl variant="outlined" size="small">
-                                    <InputLabel>Sort By</InputLabel>
-                                    <Select
-                                        value={sortField}
-                                        onChange={(e) => setSortField(e.target.value)}
-                                        label="Sort By"
-                                    >
-                                        <MenuItem value="balance">Balance</MenuItem>
-                                        <MenuItem value="interest_rate">Interest Rate</MenuItem>
-                                        <MenuItem value="min_payment">Monthly Payment</MenuItem>
-                                    </Select>
-                                </FormControl>
-                                <Button
-                                    variant="outlined"
-                                    startIcon={sortDirection === 'asc' ? <ArrowUpward /> : <ArrowDownward />}
-                                    onClick={toggleSortDirection}
-                                >
-                                    {sortDirection === 'asc' ? 'Ascending' : 'Descending'}
-                                </Button>
-                                <FormControl variant="outlined" size="small">
-                                    <InputLabel>Filter</InputLabel>
-                                    <Select
-                                        value={filterType}
-                                        onChange={handleFilterChange}
-                                        label="Filter"
-                                    >
-                                        <MenuItem value="all">All</MenuItem>
-                                        <MenuItem value="revolving">Revolving</MenuItem>
-                                        <MenuItem value="installment">Installment</MenuItem>
-                                    </Select>
-                                </FormControl>
-                                <TextField
-                                    variant="outlined"
-                                    size="small"
-                                    placeholder="Search"
-                                    value={searchTerm}
-                                    onChange={handleSearchChange}
-                                />
-                            </Stack>
-                        </Box>
-                        <Grid container spacing={2}>
-                            {filteredDebts.map((debt) => (
-                                <Grid item xs={12} sm={6} md={4} key={debt.id}>
-                                    <Card onClick={() => handleTileClick(debt.id)} 
-                                        sx={{ 
-                                            cursor: 'pointer',
-                                            transition: 'transform 0.2s, box-shadow 0.2s',
-                                            '&:hover': {
-                                                transform: 'translateY(-4px)',
-                                                boxShadow: 4
+                </Grid>
+
+                {/* Analysis Section */}
+                <Box sx={{ mt: 4, p: 3, bgcolor: '#f8f9fa', borderRadius: 2 }}>
+                    <Typography variant="h5" color="textPrimary" gutterBottom>
+                        Debt Reduction Analysis
+                    </Typography>
+                    <Typography variant="body1" color="textSecondary" gutterBottom>
+                        To reduce your debt effectively, consider the following strategies:
+                    </Typography>
+                    <ul>
+                        <li>
+                            <Typography variant="body1" color="textPrimary">
+                                <strong>Avalanche Method:</strong> Focus on paying off debts with the highest interest rates first while making minimum payments on others. This minimizes the total interest paid over time.
+                            </Typography>
+                        </li>
+                        <li>
+                            <Typography variant="body1" color="textPrimary">
+                                <strong>Snowball Method:</strong> Focus on paying off the smallest debts first to build momentum and motivation, while making minimum payments on larger debts.
+                            </Typography>
+                        </li>
+                    </ul>
+                    <Typography variant="body1" color="textSecondary" gutterBottom>
+                        Based on your current debts:
+                    </Typography>
+                    <ul>
+                        <li>
+                            <Typography variant="body1" color="textPrimary">
+                                <strong>Highest Interest Rate Debt:</strong> {debts.length > 0 ? debts.reduce((prev, curr) => (parseFloat(prev.interest_rate) > parseFloat(curr.interest_rate) ? prev : curr)).name : 'N/A'}
+                            </Typography>
+                            {debts.length > 0 && (() => {
+                                const highestInterestDebt = debts.reduce((prev, curr) => (parseFloat(prev.interest_rate) > parseFloat(curr.interest_rate) ? prev : curr));
+                                const scenarios = calculateAmortisationScenarios(highestInterestDebt, 'avalanche');
+                                const base = scenarios[0];
+                                return (
+                                    <ul>
+                                        {scenarios.map(({ scenario, months, days, totalInterest, error }, idx) => {
+                                            let extraInfo = '';
+                                            if (!error && idx > 0 && base.months !== null && base.days !== null) {
+                                                // Calculate days difference
+                                                const baseTotalDays = base.months * 30.44 + base.days;
+                                                const scenarioTotalDays = months * 30.44 + days;
+                                                const daysSaved = Math.round(baseTotalDays - scenarioTotalDays);
+
+                                                // Calculate interest difference
+                                                const interestSaved = (parseFloat(base.totalInterest) - parseFloat(totalInterest)).toFixed(2);
+
+                                                extraInfo = ` Save yourself ${daysSaved} days and ${interestSaved} interest.`;
                                             }
-                                        }}
-                                    >
-                                        <CardContent>
-                                            <Typography variant="h6" gutterBottom>
-                                                {debt.name || 'Unnamed Debt'}
-                                            </Typography>
-                                            <Typography variant="body1" color="textSecondary">
-                                                Current Balance: {formatCurrency(debt.balance)}
-                                            </Typography>
-                                            <LinearProgress
-                                                variant="determinate"
-                                                value={calculateIndividualProgress(debt)}
-                                                sx={{ height: '10px', borderRadius: '5px', my: 1 }}
-                                            />
-                                            <Typography variant="body2" color="textSecondary">
-                                                {debt.type === 'revolving' ? 'Available Credit:' : 'Progress:'}
-                                                {' '}{calculateIndividualProgress(debt).toFixed(1)}%
-                                            </Typography>
-                                            <Typography variant="body2" color="textSecondary">
-                                                Interest Rate: {(parseFloat(debt.interest_rate) || 0).toFixed(2)}%
-                                            </Typography>
-                                            <Typography variant="body2" color="textSecondary">
-                                                Monthly Payment: {formatCurrency(debt.min_payment)}
-                                            </Typography>
-                                        </CardContent>
-                                    </Card>
-                                </Grid>
-                            ))}
-                        </Grid>
-                    </div>
-                )}
-                {currentTab === 2 && (
-                    <div>
-                        <Typography variant="h5" color="textPrimary" gutterBottom>
-                            Debt Reduction Analysis
-                        </Typography>
-                        <Typography variant="body1" color="textSecondary" gutterBottom>
-                            To reduce your debt effectively, consider the following strategies:
-                        </Typography>
-                        <ul>
-                            <li>
-                                <Typography variant="body1" color="textPrimary">
-                                    <strong>Avalanche Method:</strong> Focus on paying off debts with the highest interest rates first while making minimum payments on others. This minimizes the total interest paid over time.
-                                </Typography>
-                            </li>
-                            <li>
-                                <Typography variant="body1" color="textPrimary">
-                                    <strong>Snowball Method:</strong> Focus on paying off the smallest debts first to build momentum and motivation, while making minimum payments on larger debts.
-                                </Typography>
-                            </li>
-                        </ul>
-                        <Typography variant="body1" color="textSecondary" gutterBottom>
-                            Based on your current debts:
-                        </Typography>
-                        <ul>
-                            <li>
-                                <Typography variant="body1" color="textPrimary">
-                                    <strong>Highest Interest Rate Debt:</strong> {debts.length > 0 ? debts.reduce((prev, curr) => (parseFloat(prev.interest_rate) > parseFloat(curr.interest_rate) ? prev : curr)).name : 'N/A'}
-                                </Typography>
-                                {debts.length > 0 && (() => {
-                                    const highestInterestDebt = debts.reduce((prev, curr) => (parseFloat(prev.interest_rate) > parseFloat(curr.interest_rate) ? prev : curr));
-                                    const scenarios = calculateAmortisationScenarios(highestInterestDebt, 'avalanche');
-                                    const base = scenarios[0];
-                                    return (
-                                        <ul>
-                                            {scenarios.map(({ scenario, months, days, totalInterest, error }, idx) => {
-                                                let extraInfo = '';
-                                                if (!error && idx > 0 && base.months !== null && base.days !== null) {
-                                                    // Calculate days difference
-                                                    const baseTotalDays = base.months * 30.44 + base.days;
-                                                    const scenarioTotalDays = months * 30.44 + days;
-                                                    const daysSaved = Math.round(baseTotalDays - scenarioTotalDays);
+                                            return (
+                                                <li key={scenario}>
+                                                    <Typography variant="body2" color="textSecondary">
+                                                        {scenario}: {error ? error : `Payoff in ${months} months and ${days} days, total interest: ${totalInterest}${extraInfo}`}
+                                                    </Typography>
+                                                </li>
+                                            );
+                                        })}
+                                    </ul>
+                                );
+                            })()}
+                        </li>
+                        <li>
+                            <Typography variant="body1" color="textPrimary">
+                                <strong>Smallest Debt Balance:</strong> {debts.length > 0 ? debts.reduce((prev, curr) => (parseFloat(prev.balance) < parseFloat(curr.balance) ? prev : curr)).name : 'N/A'}
+                            </Typography>
+                            {debts.length > 0 && (() => {
+                                const smallestDebt = debts.reduce((prev, curr) => (parseFloat(prev.balance) < parseFloat(curr.balance) ? prev : curr));
+                                // Recalculate scenarios using the current balance for each scenario
+                                const baseBalance = parseFloat(smallestDebt.balance);
+                                const baseMinPayment = parseFloat(smallestDebt.min_payment);
+                                const baseInterestRate = parseFloat(smallestDebt.interest_rate);
 
-                                                    // Calculate interest difference
-                                                    const interestSaved = (parseFloat(base.totalInterest) - parseFloat(totalInterest)).toFixed(2);
+                                // Build scenarios using the correct balance for each scenario
+                                const increments = [0, 0.1, 0.2, 0.5];
+                                const scenarios = increments.map((inc, idx) => {
+                                    let label, monthlyPayment;
+                                    if (idx === 0) {
+                                        label = 'Base (Min Payment)';
+                                        monthlyPayment = baseMinPayment;
+                                    } else {
+                                        label = `Min + ${inc * 100}% of Balance`;
+                                        monthlyPayment = baseMinPayment + (baseBalance * inc);
+                                    }
 
-                                                    extraInfo = ` Save yourself ${daysSaved} days and ${interestSaved} interest.`;
-                                                }
-                                                return (
-                                                    <li key={scenario}>
-                                                        <Typography variant="body2" color="textSecondary">
-                                                            {scenario}: {error ? error : `Payoff in ${months} months and ${days} days, total interest: ${totalInterest}${extraInfo}`}
-                                                        </Typography>
-                                                    </li>
-                                                );
-                                            })}
-                                        </ul>
-                                    );
-                                })()}
-                            </li>
-                            <li>
-                                <Typography variant="body1" color="textPrimary">
-                                    <strong>Smallest Debt Balance:</strong> {debts.length > 0 ? debts.reduce((prev, curr) => (parseFloat(prev.balance) < parseFloat(curr.balance) ? prev : curr)).name : 'N/A'}
-                                </Typography>
-                                {debts.length > 0 && (() => {
-                                    const smallestDebt = debts.reduce((prev, curr) => (parseFloat(prev.balance) < parseFloat(curr.balance) ? prev : curr));
-                                    // Recalculate scenarios using the current balance for each scenario
-                                    const baseBalance = parseFloat(smallestDebt.balance);
-                                    const baseMinPayment = parseFloat(smallestDebt.min_payment);
-                                    const baseInterestRate = parseFloat(smallestDebt.interest_rate);
+                                    let balance = baseBalance;
+                                    let totalInterest = 0;
+                                    let months = 0;
+                                    let lastPrincipalPayment = 0;
 
-                                    // Build scenarios using the correct balance for each scenario
-                                    const increments = [0, 0.1, 0.2, 0.5];
-                                    const scenarios = increments.map((inc, idx) => {
-                                        let label, monthlyPayment;
-                                        if (idx === 0) {
-                                            label = 'Base (Min Payment)';
-                                            monthlyPayment = baseMinPayment;
-                                        } else {
-                                            label = `Min + ${inc * 100}% of Balance`;
-                                            monthlyPayment = baseMinPayment + (baseBalance * inc);
+                                    const monthlyRate = baseInterestRate / 12 / 100;
+
+                                    while (balance > 0) {
+                                        const interest = balance * monthlyRate;
+                                        totalInterest += interest;
+                                        let principalPayment = monthlyPayment - interest;
+                                        lastPrincipalPayment = principalPayment;
+
+                                        if (principalPayment <= 0) {
+                                            return {
+                                                scenario: label,
+                                                months: null,
+                                                days: null,
+                                                totalInterest: null,
+                                                error: 'Payment too low to cover interest',
+                                            };
                                         }
 
-                                        let balance = baseBalance;
-                                        let totalInterest = 0;
-                                        let months = 0;
-                                        let lastPrincipalPayment = 0;
+                                        balance -= principalPayment;
+                                        months++;
+                                    }
 
-                                        const monthlyRate = baseInterestRate / 12 / 100;
+                                    const overpayment = Math.abs(balance);
+                                    let days = 0;
+                                    if (months > 0 && lastPrincipalPayment > 0) {
+                                        const dailyRate = monthlyPayment / 30.44;
+                                        const paymentUsed = monthlyPayment - overpayment;
+                                        days = Math.ceil(paymentUsed / dailyRate);
+                                    }
+                                    const displayMonths = months - 1;
 
-                                        while (balance > 0) {
-                                            const interest = balance * monthlyRate;
-                                            totalInterest += interest;
-                                            let principalPayment = monthlyPayment - interest;
-                                            lastPrincipalPayment = principalPayment;
+                                    return {
+                                        scenario: label,
+                                        months: displayMonths,
+                                        days: days,
+                                        totalInterest: totalInterest.toFixed(2),
+                                        error: null,
+                                    };
+                                });
 
-                                            if (principalPayment <= 0) {
-                                                return {
-                                                    scenario: label,
-                                                    months: null,
-                                                    days: null,
-                                                    totalInterest: null,
-                                                    error: 'Payment too low to cover interest',
-                                                };
+                                const base = scenarios[0];
+                                return (
+                                    <ul>
+                                        {scenarios.map(({ scenario, months, days, totalInterest, error }, idx) => {
+                                            let extraInfo = '';
+                                            if (!error && idx > 0 && base.months !== null && base.days !== null) {
+                                                const baseTotalDays = base.months * 30.44 + base.days;
+                                                const scenarioTotalDays = months * 30.44 + days;
+                                                const daysSaved = Math.round(baseTotalDays - scenarioTotalDays);
+                                                const interestSaved = (parseFloat(base.totalInterest) - parseFloat(totalInterest)).toFixed(2);
+                                                extraInfo = ` Save yourself ${daysSaved} days and ${interestSaved} interest.`;
                                             }
+                                            return (
+                                                <li key={scenario}>
+                                                    <Typography variant="body2" color="textSecondary">
+                                                        {scenario}: {error ? error : `Payoff in ${months} months and ${days} days, total interest: ${totalInterest}${extraInfo}`}
+                                                    </Typography>
+                                                </li>
+                                            );
+                                        })}
+                                    </ul>
+                                );
+                            })()}
+                        </li>
+                    </ul>
+                    <Typography variant="body1" color="textSecondary" style={{ marginTop: '20px' }}>
+                        Choose a method that aligns with your financial goals and discipline. Remember to revisit your budget regularly to allocate extra funds toward debt repayment.
+                    </Typography>
+                </Box>
 
-                                            balance -= principalPayment;
-                                            months++;
-                                        }
+                {/* Planned Expenses Section - To be implemented */}
+                <Box sx={{ mt: 4 }}>
+                    <Typography variant="h5" color="textPrimary" gutterBottom>
+                        Planned Expenses
+                    </Typography>
+                    <Typography variant="body1" color="textSecondary" gutterBottom>
+                        Manage your upcoming expenses to maintain a healthy budget:
+                    </Typography>
+                    {/* Table or list of planned expenses */}
+                </Box>
 
-                                        const overpayment = Math.abs(balance);
-                                        let days = 0;
-                                        if (months > 0 && lastPrincipalPayment > 0) {
-                                            const dailyRate = monthlyPayment / 30.44;
-                                            const paymentUsed = monthlyPayment - overpayment;
-                                            days = Math.ceil(paymentUsed / dailyRate);
-                                        }
-                                        const displayMonths = months - 1;
-
-                                        return {
-                                            scenario: label,
-                                            months: displayMonths,
-                                            days: days,
-                                            totalInterest: totalInterest.toFixed(2),
-                                            error: null,
-                                        };
-                                    });
-
-                                    const base = scenarios[0];
-                                    return (
-                                        <ul>
-                                            {scenarios.map(({ scenario, months, days, totalInterest, error }, idx) => {
-                                                let extraInfo = '';
-                                                if (!error && idx > 0 && base.months !== null && base.days !== null) {
-                                                    const baseTotalDays = base.months * 30.44 + base.days;
-                                                    const scenarioTotalDays = months * 30.44 + days;
-                                                    const daysSaved = Math.round(baseTotalDays - scenarioTotalDays);
-                                                    const interestSaved = (parseFloat(base.totalInterest) - parseFloat(totalInterest)).toFixed(2);
-                                                    extraInfo = ` Save yourself ${daysSaved} days and ${interestSaved} interest.`;
-                                                }
-                                                return (
-                                                    <li key={scenario}>
-                                                        <Typography variant="body2" color="textSecondary">
-                                                            {scenario}: {error ? error : `Payoff in ${months} months and ${days} days, total interest: ${totalInterest}${extraInfo}`}
-                                                        </Typography>
-                                                    </li>
-                                                );
-                                            })}
-                                        </ul>
-                                    );
-                                })()}
-                            </li>
-                        </ul>
-                        <Typography variant="body1" color="textSecondary" style={{ marginTop: '20px' }}>
-                            Choose a method that aligns with your financial goals and discipline. Remember to revisit your budget regularly to allocate extra funds toward debt repayment.
-                        </Typography>
-                    </div>
-                )}
+                {/* Navigation buttons - if needed */}
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
+                    <Button
+                        variant="contained"
+                        color="primary"
+                        component={Link}
+                        to="/previous-page"
+                    >
+                        Back
+                    </Button>
+                    <Button
+                        variant="contained"
+                        color="primary"
+                        component={Link}
+                        to="/next-page"
+                    >
+                        Next
+                    </Button>
+                </Box>
             </Box>
         </div>
     );
