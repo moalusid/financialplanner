@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Chart } from 'react-google-charts';
+import { PieChart, Pie, Cell, Legend, ResponsiveContainer, Tooltip } from 'recharts';
 import axios from 'axios';
 
 const BudgetManager = () => {
@@ -100,27 +100,48 @@ const BudgetManager = () => {
 
     const remainingBudget = totalIncome - totalExpenses;
 
-    // Updated chart data preparation
-    const chartData = [
-        ['Classification', 'Amount'],
-        ['Essentials', expensesByClassification['Essentials'] || 0],
-        ['Savings', expensesByClassification['Savings'] || 0],
-        ['Non Essentials', expensesByClassification['Non Essentials'] || 0],
-        ['Remaining Budget', Math.max(remainingBudget, 0)]
+    // Update chart data preparation
+    const maxAmount = Math.max(totalIncome, totalExpenses);
+    const totalInnerValue = Object.values(expensesByClassification).reduce((sum, val) => sum + val, 0) + Math.max(remainingBudget, 0);
+
+    const innerData = [
+        { 
+            name: 'Essentials', 
+            value: expensesByClassification['Essentials'] || 0,
+            percentage: ((expensesByClassification['Essentials'] || 0) / totalExpenses * 100).toFixed(1)
+        },
+        { 
+            name: 'Savings', 
+            value: expensesByClassification['Savings'] || 0,
+            percentage: ((expensesByClassification['Savings'] || 0) / totalExpenses * 100).toFixed(1)
+        },
+        { 
+            name: 'Non Essentials', 
+            value: expensesByClassification['Non Essentials'] || 0,
+            percentage: ((expensesByClassification['Non Essentials'] || 0) / totalExpenses * 100).toFixed(1)
+        },
+        { 
+            name: 'Hidden', 
+            value: Math.max(0, maxAmount - totalExpenses),
+            hide: true 
+        }
     ];
 
-    const chartOptions = {
-        title: 'Spending by Classification',
-        pieHole: 0.4,
-        is3D: false,
-        legend: { position: 'right' },
-        chartArea: { width: '70%', height: '80%' },
-        colors: [
-            '#FF9800', // Essentials (Orange)
-            '#4CAF50', // Savings (Green)
-            '#F44336', // Non Essentials (Red)
-            '#E0E0E0', // Remaining Budget (Grey)
-        ]
+    const outerData = [
+        { 
+            name: 'Total Income', 
+            value: totalIncome 
+        },
+        { 
+            name: 'Hidden', 
+            value: Math.max(0, maxAmount - totalIncome),
+            hide: true 
+        }
+    ];
+
+    const COLORS = {
+        inner: ['#FF9800', '#4CAF50', '#F44336'],
+        outer: ['#2196F3']
     };
 
     // Add new function to get bar color based on classification
@@ -138,6 +159,68 @@ const BudgetManager = () => {
         const maxAmount = Math.max(...plannedExpenses.map(e => parseFloat(e.amount)));
         return `${(parseFloat(amount) / maxAmount) * 100}%`;
     };
+
+    // Replace Chart component with this
+    const renderDonutChart = () => (
+        <ResponsiveContainer width="100%" height={400}>
+            <PieChart>
+                <Pie
+                    data={outerData}
+                    dataKey="value"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={150}
+                    innerRadius={130}
+                    startAngle={0}
+                    endAngle={360}
+                >
+                    {outerData.map((entry, index) => (
+                        <Cell 
+                            key={`outer-${index}`} 
+                            fill={entry.hide ? 'transparent' : COLORS.outer[0]}
+                        />
+                    ))}
+                </Pie>
+                <Pie
+                    data={innerData}
+                    dataKey="value"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={80}
+                    outerRadius={120}
+                    startAngle={0}
+                    endAngle={360}
+                >
+                    {innerData.map((entry, index) => (
+                        <Cell 
+                            key={`inner-${index}`} 
+                            fill={entry.hide ? 'transparent' : COLORS.inner[index]}
+                        />
+                    ))}
+                </Pie>
+                <Tooltip 
+                    formatter={(value, name, entry) => {
+                        if (name === 'Hidden') return null;
+                        if (name === 'Total Income') return [`P${value.toLocaleString('en-BW')}`];
+                        return [`P${value.toLocaleString('en-BW')} (${entry.payload.percentage}%)`];
+                    }}
+                    contentStyle={{ 
+                        display: (_, payload) => 
+                            payload[0]?.name === 'Hidden' ? 'none' : 'block' 
+                    }}
+                />
+                <Legend 
+                    payload={[...innerData, ...outerData]
+                        .filter(item => !item.hide)
+                        .map((entry, index) => ({
+                            value: `${entry.name}${entry.percentage ? ` (${entry.percentage}%)` : ''}`,
+                            type: 'circle',
+                            color: entry.name === 'Total Income' ? COLORS.outer[0] : COLORS.inner[index]
+                        }))}
+                />
+            </PieChart>
+        </ResponsiveContainer>
+    );
 
     return (
         <div style={{ fontFamily: 'Open Sans, sans-serif', textAlign: 'center' }}>
@@ -264,13 +347,7 @@ const BudgetManager = () => {
             </div>
             <div style={{ marginBottom: '20px', textAlign: 'center' }}>
                 <h3 style={{ fontSize: '30px', fontWeight: 'bold', textAlign: 'center' }}>Spending Breakdown</h3>
-                <Chart
-                    chartType="PieChart"
-                    data={chartData}
-                    options={chartOptions}
-                    width="100%"
-                    height="400px"
-                />
+                {renderDonutChart()}
             </div>
             <div style={{ marginBottom: '20px', textAlign: 'center' }}>
                 <h3 style={{ fontSize: '24px', marginBottom: '15px' }}>Upcoming Planned Expenses</h3>
