@@ -15,6 +15,18 @@ import {
 Chart.register(ArcElement, CategoryScale, LinearScale, BarElement, Title);
 
 const DebtManagement = () => {
+    // Add CATEGORY_COLORS constant at the top of the component
+    const CATEGORY_COLORS = {
+        'Personal Loan': '#FF9800',
+        'Credit Card': '#F44336',
+        'Mortgage': '#2196F3',
+        'Auto Loan': '#4CAF50',
+        'Cash Loan': '#9C27B0',
+        'Hire Purchase': '#FF5722',
+        'Store Card': '#795548',
+        'Other': '#607D8B'
+    };
+
     // Remove currentTab state and handleTabChange
     const [debts, setDebts] = useState([]);
     const [filteredDebts, setFilteredDebts] = useState([]);
@@ -92,33 +104,28 @@ const DebtManagement = () => {
 
     // Add chart data preparation functions
     const prepareDoughnutData = () => {
-        const data = debts.reduce((result, debt) => {
+        // Get data and sort by value (highest to lowest)
+        const data = Object.entries(debts.reduce((result, debt) => {
             const category = debt.category || 'Other';
-            if (!result[category]) {
-                result[category] = 0;
-            }
+            if (!result[category]) result[category] = 0;
             result[category] += parseFloat(debt.balance) || 0;
             return result;
-        }, {});
-
-        const COLORS = {
-            'Personal Loan': '#FF9800',
-            'Credit Card': '#F44336',
-            'Mortgage': '#2196F3',
-            'Auto Loan': '#4CAF50',
-            'Cash Loan': '#9C27B0',
-            'Hire Purchase': '#FF5722',
-            'Store Card': '#795548',
-            'Other': '#607D8B'
-        };
-
-        const chartData = Object.entries(data).map(([name, value]) => ({
+        }, {}))
+        .sort(([, a], [, b]) => b - a)
+        .map(([name, value]) => ({
             name,
             value,
-            fill: COLORS[name] || COLORS['Other']
+            // Format values to be more readable
+            displayValue: value >= 1000000 
+                ? `${(value / 1000000).toFixed(1)}M` 
+                : value >= 1000 
+                    ? `${(value / 1000).toFixed(1)}K` 
+                    : value.toFixed(0),
+            percentage: ((value / totalOutstandingDebt) * 100).toFixed(1),
+            fill: CATEGORY_COLORS[name] || CATEGORY_COLORS['Other']
         }));
 
-        return chartData;
+        return data;
     };
 
     const prepareBalanceHistoryData = () => {
@@ -559,40 +566,52 @@ const DebtManagement = () => {
 
                 <Divider sx={{ my: 4 }} />
 
-                {/* Single Grid for Donut Chart */}
-                <Grid container justifyContent="center">
-                    <Grid item xs={12} md={8}>
-                        <Card>
-                            <CardContent>
-                                <Typography variant="h6" color="textSecondary" gutterBottom>
-                                    Debt Distribution by Category
-                                </Typography>
-                                <ResponsiveContainer width="100%" height={400}>
-                                    <PieChart>
-                                        <Pie
-                                            data={prepareDoughnutData()}
-                                            dataKey="value"
-                                            nameKey="name"
-                                            cx="50%"
-                                            cy="50%"
-                                            innerRadius={60}
-                                            outerRadius={120}
-                                            label={({name, value}) => `${name}: P${value.toLocaleString('en-BW')}`}
-                                        >
-                                            {prepareDoughnutData().map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={entry.fill} />
-                                            ))}
-                                        </Pie>
-                                        <Tooltip 
-                                            formatter={(value) => `P${value.toLocaleString('en-BW')}`}
-                                        />
-                                        <Legend />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                            </CardContent>
-                        </Card>
-                    </Grid>
-                </Grid>
+                {/* Donut Chart Container */}
+                <Card sx={{ maxWidth: 900, margin: '0 auto' }}>
+                    <CardContent sx={{ py: 2 }}>  {/* Reduced padding top/bottom */}
+                        <Typography variant="h6" color="textSecondary" gutterBottom>
+                            Debt Distribution by Category
+                        </Typography>
+                        <Box sx={{ height: 450 }}>  {/* Reduced height */}
+                            <ResponsiveContainer>
+                                <PieChart>
+                                    <Pie
+                                        data={prepareDoughnutData()}
+                                        dataKey="value"
+                                        nameKey="name"
+                                        cx="50%"
+                                        cy="50%"
+                                        innerRadius={80}
+                                        outerRadius={160}
+                                        label={false}
+                                    >
+                                        {prepareDoughnutData().map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip 
+                                        formatter={(value) => formatCurrency(value)}
+                                    />
+                                    <Legend
+                                        verticalAlign="middle"
+                                        align="right"
+                                        layout="vertical"
+                                        iconType="circle"
+                                        formatter={(value, entry) => {
+                                            const { payload } = entry;
+                                            return `${value}: ${formatCurrency(payload.value)} (${payload.percentage}%)`;
+                                        }}
+                                        wrapperStyle={{
+                                            paddingLeft: '50px',
+                                            fontSize: '16px',  // Increased font size
+                                            lineHeight: '24px' // Added line height for better spacing
+                                        }}
+                                    />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        </Box>
+                    </CardContent>
+                </Card>
 
                 {/* Analysis Section */}
                 <Box sx={{ mt: 4, p: 3, bgcolor: '#f8f9fa', borderRadius: 2 }}>

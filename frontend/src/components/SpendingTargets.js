@@ -116,6 +116,12 @@ const SpendingTargets = () => {
 
     const handleSave = async () => {
         try {
+            const validTargets = Object.fromEntries(
+                Object.entries(targets)
+                    .filter(([_, value]) => value !== '')
+                    .map(([key, value]) => [key, parseFloat(value) || 0])
+            );
+
             const response = await fetch('/api/yearlyTargets', {
                 method: 'POST',
                 headers: {
@@ -124,18 +130,19 @@ const SpendingTargets = () => {
                 body: JSON.stringify({
                     year: selectedYear,
                     month: selectedMonth,
-                    targets,
+                    targets: validTargets
                 }),
             });
 
+            const data = await response.json();
             if (!response.ok) {
-                throw new Error('Failed to save targets');
+                throw new Error(data.message || 'Failed to save targets');
             }
 
             alert('Spending targets saved!');
         } catch (error) {
             console.error('Error saving targets:', error);
-            alert('Failed to save spending targets.');
+            alert(`Failed to save spending targets: ${error.message}`);
         }
     };
 
@@ -144,9 +151,9 @@ const SpendingTargets = () => {
             const nextYear = selectedMonth === 12 ? selectedYear + 1 : selectedYear;
             const nextMonth = selectedMonth === 12 ? 1 : selectedMonth + 1;
             
-            // Filter out empty values and ensure numeric values
             const validTargets = Object.fromEntries(
-                Object.entries(targets).filter(([_, value]) => value !== '')
+                Object.entries(targets)
+                    .filter(([_, value]) => value !== '')
                     .map(([key, value]) => [key, parseFloat(value) || 0])
             );
             
@@ -158,20 +165,18 @@ const SpendingTargets = () => {
                 body: JSON.stringify({
                     year: nextYear,
                     month: nextMonth,
-                    targets: validTargets,
+                    targets: validTargets
                 }),
             });
 
-            const responseData = await response.json();
-            console.log('Server response:', responseData);
-
+            const data = await response.json();
             if (!response.ok) {
-                throw new Error(`Failed to copy targets: ${responseData.error || 'Unknown error'}`);
+                throw new Error(data.message || 'Failed to copy targets');
             }
 
             alert(`Targets copied to ${months[nextMonth - 1]} ${nextYear}!`);
         } catch (error) {
-            console.error('Error copying targets:', error.message);
+            console.error('Error copying targets:', error);
             alert(`Failed to copy spending targets: ${error.message}`);
         }
     };
@@ -182,14 +187,22 @@ const SpendingTargets = () => {
             const prevMonth = selectedMonth === 1 ? 12 : selectedMonth - 1;
             
             const response = await fetch(`/api/yearlyTargets?year=${prevYear}&month=${prevMonth}`);
+            
+            const responseBody = await response.text();
             if (!response.ok) {
-                throw new Error('Failed to fetch previous month targets');
+                let errorMessage;
+                try {
+                    const errorData = JSON.parse(responseBody);
+                    errorMessage = errorData.message;
+                } catch {
+                    errorMessage = responseBody;
+                }
+                throw new Error(errorMessage || 'Failed to fetch previous month targets');
             }
             
-            const data = await response.json();
+            const data = JSON.parse(responseBody);
             const prevMonthTargets = data[prevYear]?.[prevMonth] || {};
             
-            // Filter out empty values and ensure numeric values
             const validTargets = Object.fromEntries(
                 Object.entries(prevMonthTargets).filter(([_, value]) => value !== '')
                     .map(([key, value]) => [key, parseFloat(value) || 0])
@@ -206,17 +219,19 @@ const SpendingTargets = () => {
                     year: selectedYear,
                     month: selectedMonth,
                     targets: validTargets,
+                    update: true
                 }),
             });
 
             if (!saveResponse.ok) {
-                throw new Error('Failed to save copied targets');
+                const errorData = await saveResponse.json();
+                throw new Error(errorData.message || 'Failed to save copied targets');
             }
             
             alert(`Targets copied from ${months[prevMonth - 1]} ${prevYear} and saved!`);
         } catch (error) {
             console.error('Error copying targets:', error);
-            alert('Failed to copy spending targets from previous month.');
+            alert(`Failed to copy spending targets: ${error.message}`);
         }
     };
 

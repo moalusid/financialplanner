@@ -20,6 +20,7 @@ import {
 } from 'chart.js';
 import { Add as AddIcon, Remove as RemoveIcon } from '@mui/icons-material';
 import { calculatePayoffDetails, calculateRequiredPayment } from '../utils/financialCalculations';
+import { Link } from 'react-router-dom';
 
 // Register ChartJS components
 ChartJS.register(
@@ -1039,6 +1040,18 @@ const DebtInsights = () => {
 
             {currentTab === 0 && <WhatIfPanel />}
             {currentTab === 1 && <ExtraPaymentPanel />}
+
+            <Box sx={{ mt: 3, textAlign: 'center' }}>
+                <Link to="/debt-management" style={{ textDecoration: 'none' }}>
+                    <Button
+                        variant="outlined"
+                        color="primary"
+                        sx={{ mt: 2 }}
+                    >
+                        Back to Debt Management
+                    </Button>
+                </Link>
+            </Box>
         </Box>
     );
 };

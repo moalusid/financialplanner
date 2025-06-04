@@ -39,33 +39,29 @@ router.post('/', async (req, res) => {
     }
 
     try {
-        // Begin transaction
-        await pool.query('BEGIN');
-
-        // Delete existing targets for this month/year
+        // Delete existing targets for this year/month
         await pool.query(
             'DELETE FROM yearly_targets WHERE year = $1 AND month = $2',
             [year, month]
         );
 
-        // Only insert non-empty numeric values
-        const insertPromises = Object.entries(targets)
-            .filter(([_, value]) => value !== null && value !== '' && !isNaN(value))
-            .map(([category, target]) =>
-                pool.query(
-                    'INSERT INTO yearly_targets (year, month, category, target) VALUES ($1, $2, $3, $4)',
-                    [year, month, category, parseFloat(target)]
-                )
+        // Insert new targets using the correct column name "target"
+        const insertPromises = Object.entries(targets).map(([category, value]) => {
+            return pool.query(
+                'INSERT INTO yearly_targets (year, month, category, target) VALUES ($1, $2, $3, $4)',
+                [year, month, category, value]
             );
+        });
 
         await Promise.all(insertPromises);
-        await pool.query('COMMIT');
-        
-        res.status(200).json({ message: 'Targets updated successfully' });
+        res.json({ success: true });
     } catch (error) {
-        await pool.query('ROLLBACK');
         console.error('Error updating yearly targets:', error);
-        res.status(500).json({ error: 'Failed to update yearly targets' });
+        res.status(500).json({ 
+            success: false,
+            message: 'Failed to update targets',
+            error: error.message 
+        });
     }
 });
 

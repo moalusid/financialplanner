@@ -193,6 +193,13 @@ const PlannedExpenses = () => {
     };
 
     const renderExpenseBar = (expense) => {
+        // Format the date to dd-mmm
+        const date = new Date(expense.due_date);
+        const formattedDate = date.toLocaleDateString('en-US', { 
+            day: '2-digit',
+            month: 'short'
+        });
+
         return (
             <div key={expense.id} style={{
                 position: 'relative',
@@ -202,7 +209,6 @@ const PlannedExpenses = () => {
                 borderRadius: '4px',
                 border: '1px solid #ddd'
             }}>
-                {/* Background bar - removed closing slash */}
                 <div style={{
                     position: 'absolute',
                     left: 0,
@@ -221,7 +227,14 @@ const PlannedExpenses = () => {
                     height: '100%',
                     zIndex: 1
                 }}>
-                    <span>{expense.description}</span>
+                    <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                        <span style={{ 
+                            minWidth: '70px',
+                            color: '#666',
+                            fontSize: '0.9em'
+                        }}>{formattedDate}</span>
+                        <span>{expense.description}</span>
+                    </div>
                     <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                         <span style={{ marginRight: '20px' }}>
                             P{expense.amount.toLocaleString('en-BW', {minimumFractionDigits: 2})}
