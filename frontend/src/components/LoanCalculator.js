@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { 
   Slider, Typography, Box, Grid, Card, CardContent, 
   FormControl, InputLabel, Select, MenuItem, Divider,
-  Stack, Tab, Tabs
+  Stack, Tab, Tabs, Button 
 } from '@mui/material';
 import { Chart } from 'react-google-charts';
 
@@ -13,20 +13,25 @@ const LoanCalculator = () => {
   const [loan, setLoan] = useState({ amount: 5000, rate: 5, months: 12 });
   const [monthly, setMonthly] = useState(null);
   const [chartData, setChartData] = useState([]);
-  const [debts, setDebts] = useState([]);
-  const [selectedDebt1, setSelectedDebt1] = useState(null);
-  const [selectedDebt2, setSelectedDebt2] = useState(null);
+  const [banks, setBanks] = useState([]);
+  const [loanProducts, setLoanProducts] = useState([]);
+  const [selectedBank, setSelectedBank] = useState(null);
+  const [comparison, setComparison] = useState([]);
 
   useEffect(() => {
-    const fetchDebts = async () => {
+    const fetchBankData = async () => {
       try {
-        const response = await axios.get('/api/debts');
-        setDebts(response.data);
+        const [banksRes, productsRes] = await Promise.all([
+          axios.get(`${apiUrl}/calculator/banks`),
+          axios.get(`${apiUrl}/calculator/loan-products`)
+        ]);
+        setBanks(banksRes.data);
+        setLoanProducts(productsRes.data);
       } catch (error) {
-        console.error('Error fetching debts:', error);
+        console.error('Error fetching bank data:', error);
       }
     };
-    fetchDebts();
+    fetchBankData();
   }, []);
 
   const formatCurrency = (amount) => {
@@ -36,73 +41,9 @@ const LoanCalculator = () => {
     }).format(amount);
   };
 
-  const ComparisonTable = () => (
-    <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-      <Card sx={{ maxWidth: 800, width: '100%', bgcolor: '#f8f9fa' }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom align="center">
-            Debt Comparison
-          </Typography>
-          {selectedDebt1 && selectedDebt2 && (
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <Card sx={{ height: '100%', bgcolor: '#e3f2fd' }}>
-                  <CardContent>
-                    <Typography variant="h6" color="primary" gutterBottom>
-                      {selectedDebt1.name}
-                    </Typography>
-                    <Stack spacing={2} divider={<Divider flexItem />}>
-                      <Box>
-                        <Typography variant="body2" color="textSecondary">Balance</Typography>
-                        <Typography variant="body1">{formatCurrency(selectedDebt1.balance)}</Typography>
-                      </Box>
-                      <Box>
-                        <Typography variant="body2" color="textSecondary">Interest Rate</Typography>
-                        <Typography variant="body1">{selectedDebt1.interest_rate}%</Typography>
-                      </Box>
-                      <Box>
-                        <Typography variant="body2" color="textSecondary">Monthly Payment</Typography>
-                        <Typography variant="body1">{formatCurrency(selectedDebt1.min_payment)}</Typography>
-                      </Box>
-                    </Stack>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <Card sx={{ height: '100%', bgcolor: '#fff3e0' }}>
-                  <CardContent>
-                    <Typography variant="h6" color="secondary" gutterBottom>
-                      {selectedDebt2.name}
-                    </Typography>
-                    <Stack spacing={2} divider={<Divider flexItem />}>
-                      <Box>
-                        <Typography variant="body2" color="textSecondary">Balance</Typography>
-                        <Typography variant="body1">{formatCurrency(selectedDebt2.balance)}</Typography>
-                      </Box>
-                      <Box>
-                        <Typography variant="body2" color="textSecondary">Interest Rate</Typography>
-                        <Typography variant="body1">{selectedDebt2.interest_rate}%</Typography>
-                      </Box>
-                      <Box>
-                        <Typography variant="body2" color="textSecondary">Monthly Payment</Typography>
-                        <Typography variant="body1">{formatCurrency(selectedDebt2.min_payment)}</Typography>
-                      </Box>
-                    </Stack>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          )}
-        </CardContent>
-      </Card>
-    </Box>
-  );
-
-  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
-
   const handleCalculate = async () => {
     try {
-      const res = await axios.post(`${apiUrl}/loan`, {
+      const res = await axios.post(`${apiUrl}/calculator/loan`, {
         loanAmount: loan.amount,
         interestRate: loan.rate,
         termMonths: loan.months
@@ -118,6 +59,113 @@ const LoanCalculator = () => {
     }
   };
 
+  const handleCalculationTypeChange = (e) => {
+    if (e.target.value === 'custom') {
+      setSelectedBank(null);
+      setComparison([]);
+    } else {
+      // Set bank selection mode
+      setSelectedBank(''); // Empty string to show bank dropdown
+    }
+  };
+
+  const handleBankSelect = (bankId) => {
+    setSelectedBank(bankId);
+    const product = loanProducts.find(p => p.bank_id === bankId);
+    if (product) {
+      setLoan(prev => ({
+        ...prev,
+        rate: product.apr
+      }));
+      // Calculate loan immediately when bank is selected
+      handleCalculate();
+    }
+  };
+
+  const handleCompareBanks = async () => {
+    try {
+      // Filter eligible products based on amount and term
+      const eligibleProducts = loanProducts.filter(product => 
+        loan.amount >= product.min_amount && 
+        loan.amount <= product.max_amount &&
+        loan.months >= product.min_term &&
+        loan.months <= product.max_term
+      );
+
+      // Calculate comparison data locally
+      const comparisonData = eligibleProducts.map(product => {
+        const monthlyRate = product.apr / 100 / 12;
+        const monthlyPayment = (loan.amount * monthlyRate * Math.pow(1 + monthlyRate, loan.months)) /
+                             (Math.pow(1 + monthlyRate, loan.months) - 1);
+        const totalPayment = monthlyPayment * loan.months;
+        const totalInterest = totalPayment - loan.amount;
+
+        return {
+          bankId: product.bank_id,
+          bankName: banks.find(b => b.id === product.bank_id)?.name,
+          productName: product.name,
+          monthlyPayment,
+          totalInterest,
+          totalPayment,
+          apr: product.apr
+        };
+      });
+
+      setComparison(comparisonData);
+    } catch (error) {
+      console.error('Error comparing loans:', error);
+    }
+  };
+
+  const BankComparisonTable = ({ comparison }) => (
+    <Card sx={{ mt: 3 }}>
+      <CardContent>
+        <Typography variant="h6" gutterBottom>Bank Loan Comparison</Typography>
+        <Grid container spacing={2}>
+          {comparison.map((offer, index) => (
+            <Grid item xs={12} sm={6} md={4} key={index}>
+              <Card variant="outlined">
+                <CardContent>
+                  <Typography variant="subtitle1" color="primary">
+                    {offer.productName}
+                  </Typography>
+                  <Stack spacing={1}>
+                    <Box>
+                      <Typography variant="body2" color="textSecondary">
+                        Monthly Payment
+                      </Typography>
+                      <Typography variant="body1">
+                        {formatCurrency(offer.monthlyPayment)}
+                      </Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="body2" color="textSecondary">
+                        Total Interest
+                      </Typography>
+                      <Typography variant="body1">
+                        {formatCurrency(offer.totalInterest)}
+                      </Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="body2" color="textSecondary">
+                        APR
+                      </Typography>
+                      <Typography variant="body1">
+                        {offer.apr}%
+                      </Typography>
+                    </Box>
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+      </CardContent>
+    </Card>
+  );
+
+  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+
   return (
     <Box sx={{ maxWidth: 1200, margin: '0 auto', p: 3 }}>
       <Link to="/">Back to Homepage</Link>
@@ -125,39 +173,98 @@ const LoanCalculator = () => {
 
       <Tabs value={currentTab} onChange={(e, v) => setCurrentTab(v)} centered sx={{ mb: 3 }}>
         <Tab label="Loan Calculator" />
-        <Tab label="Compare Debts" />
+        <Tab label="Compare Bank Loans" />
       </Tabs>
 
       {currentTab === 0 ? (
-        // Original loan calculator content
         <Box>
-          <label>Loan Amount</label>
-          <input
-            type="number"
-            value={loan.amount}
-            onChange={(e) => setLoan({ ...loan, amount: parseFloat(e.target.value) || 0 })}
-          />
+          <Grid container spacing={3}>
+            <Grid item xs={12}>
+              <FormControl fullWidth>
+                <InputLabel>Calculation Type</InputLabel>
+                <Select
+                  value={selectedBank === null ? 'custom' : 'bank'}
+                  onChange={handleCalculationTypeChange}
+                >
+                  <MenuItem value="custom">Custom Rate</MenuItem>
+                  <MenuItem value="bank">Select Bank</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
 
-          <label>Interest Rate (%)</label>
-          <input
-            type="number"
-            value={loan.rate}
-            onChange={(e) => setLoan({ ...loan, rate: parseFloat(e.target.value) || 0 })}
-          />
+            {selectedBank !== null && (
+              <Grid item xs={12}>
+                <FormControl fullWidth>
+                  <InputLabel>Select Bank</InputLabel>
+                  <Select
+                    value={selectedBank}
+                    onChange={(e) => handleBankSelect(e.target.value)}
+                    displayEmpty
+                  >
+                    <MenuItem value="" disabled>Select a bank</MenuItem>
+                    {banks.map(bank => (
+                      <MenuItem key={bank.id} value={bank.id}>
+                        {bank.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+            )}
 
-          <Typography gutterBottom>Loan Term (Months)</Typography>
-          <Slider
-            value={loan.months}
-            min={6}
-            max={360}
-            step={6}
-            onChange={(e, value) => setLoan({ ...loan, months: value })}
-            valueLabelDisplay="auto"
-          />
+            <Grid item xs={12} sm={6}>
+              <Typography gutterBottom>Loan Amount</Typography>
+              <Slider
+                value={loan.amount}
+                min={1000}
+                max={1000000}
+                step={1000}
+                onChange={(e, value) => setLoan({ ...loan, amount: value })}
+                valueLabelDisplay="auto"
+                valueLabelFormat={(value) => formatCurrency(value)}
+              />
+            </Grid>
 
-          <button onClick={handleCalculate}>Calculate</button>
+            <Grid item xs={12} sm={6}>
+              <Typography gutterBottom>Loan Term (Months)</Typography>
+              <Slider
+                value={loan.months}
+                min={6}
+                max={360}
+                step={6}
+                onChange={(e, value) => setLoan({ ...loan, months: value })}
+                valueLabelDisplay="auto"
+              />
+            </Grid>
 
-          {monthly && <p>Monthly Payment: {monthly}</p>}
+            {!selectedBank && (
+              <Grid item xs={12} sm={6}>
+                <Typography gutterBottom>Interest Rate (%)</Typography>
+                <Slider
+                  value={loan.rate}
+                  min={1}
+                  max={30}
+                  step={0.1}
+                  onChange={(e, value) => setLoan({ ...loan, rate: value })}
+                  valueLabelDisplay="auto"
+                />
+              </Grid>
+            )}
+
+            <Grid item xs={12}>
+              <Stack direction="row" spacing={2}>
+                <Button variant="contained" onClick={handleCalculate}>
+                  Calculate
+                </Button>
+              </Stack>
+            </Grid>
+          </Grid>
+
+          {monthly && (
+            <Typography variant="h6" sx={{ mt: 3 }}>
+              Monthly Payment: {formatCurrency(monthly)}
+            </Typography>
+          )}
 
           {chartData.length > 0 && (
             <Chart
@@ -170,40 +277,48 @@ const LoanCalculator = () => {
           )}
         </Box>
       ) : (
-        // Compare Debts tab
+        // Compare Loans tab
         <Box sx={{ width: '100%', p: 2 }}>
-          <Typography variant="h5" gutterBottom>Compare Debts</Typography>
+          <Typography variant="h5" gutterBottom>Compare Bank Loans</Typography>
+          
+          {/* Loan Amount and Term Controls */}
           <Grid container spacing={3} sx={{ mb: 4 }}>
             <Grid item xs={12} sm={6}>
-              <FormControl fullWidth>
-                <InputLabel>First Debt</InputLabel>
-                <Select
-                  value={selectedDebt1?.id || ''}
-                  onChange={(e) => setSelectedDebt1(debts.find(d => d.id === e.target.value))}
-                  label="First Debt"
-                >
-                  {debts.map(debt => (
-                    <MenuItem key={debt.id} value={debt.id}>{debt.name}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <Typography gutterBottom>Loan Amount</Typography>
+              <Slider
+                value={loan.amount}
+                min={1000}
+                max={1000000}
+                step={1000}
+                onChange={(e, value) => setLoan({ ...loan, amount: value })}
+                valueLabelDisplay="auto"
+                valueLabelFormat={(value) => formatCurrency(value)}
+              />
             </Grid>
             <Grid item xs={12} sm={6}>
-              <FormControl fullWidth>
-                <InputLabel>Second Debt</InputLabel>
-                <Select
-                  value={selectedDebt2?.id || ''}
-                  onChange={(e) => setSelectedDebt2(debts.find(d => d.id === e.target.value))}
-                  label="Second Debt"
-                >
-                  {debts.map(debt => (
-                    <MenuItem key={debt.id} value={debt.id}>{debt.name}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <Typography gutterBottom>Loan Term (Months)</Typography>
+              <Slider
+                value={loan.months}
+                min={6}
+                max={360}
+                step={6}
+                onChange={(e, value) => setLoan({ ...loan, months: value })}
+                valueLabelDisplay="auto"
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <Button 
+                variant="contained" 
+                onClick={handleCompareBanks}
+                fullWidth
+              >
+                Compare Bank Loans
+              </Button>
             </Grid>
           </Grid>
-          {selectedDebt1 && selectedDebt2 && <ComparisonTable />}
+
+          {/* Bank Comparison Results */}
+          {comparison.length > 0 && <BankComparisonTable comparison={comparison} />}
         </Box>
       )}
     </Box>

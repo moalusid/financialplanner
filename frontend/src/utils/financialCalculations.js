@@ -124,4 +124,36 @@ export const generateDebtInstallments = (debt) => {
     return installments;
 };
 
+/**
+ * Calculates loan details for multiple banks
+ * @param {number} amount - Loan amount
+ * @param {number} months - Loan term in months
+ * @param {Array} bankProducts - Array of bank loan products
+ * @returns {Array} Comparison of loan details for each bank
+ */
+export const compareBankLoans = (amount, months, bankProducts) => {
+    return bankProducts.map(product => {
+        if (amount < product.min_amount || amount > product.max_amount ||
+            months < product.min_term || months > product.max_term) {
+            return null;
+        }
+
+        const monthlyRate = product.apr / 100 / 12;
+        const monthlyPayment = (amount * monthlyRate * Math.pow(1 + monthlyRate, months)) /
+                             (Math.pow(1 + monthlyRate, months) - 1);
+        const totalPayment = monthlyPayment * months;
+        const totalInterest = totalPayment - amount;
+
+        return {
+            bankId: product.bank_id,
+            productId: product.id,
+            productName: product.name,
+            monthlyPayment: Math.round(monthlyPayment * 100) / 100,
+            totalInterest: Math.round(totalInterest * 100) / 100,
+            totalPayment: Math.round(totalPayment * 100) / 100,
+            apr: product.apr
+        };
+    }).filter(result => result !== null);
+};
+
 // Add more financial calculation functions here as needed
